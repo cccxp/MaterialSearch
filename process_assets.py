@@ -43,7 +43,13 @@ def get_image_data(path: str, ignore_small_images: bool):
         image = Image.open(path)
         if ignore_small_images:
             width, height = image.size
-            if width < IMAGE_MIN_WIDTH or height < IMAGE_MIN_HEIGHT:
+            # 避免 Png Bomb 攻击
+            # https://github.com/ptrofimov/png-bomb-protection
+            if any((
+                width * height > IMAGE_MAX_PIXELS,
+                width < IMAGE_MIN_WIDTH, 
+                height < IMAGE_MIN_HEIGHT
+            )):
                 return None 
         # processor 中也会这样预处理 Image
         # 在这里提前转为 np.array 避免到时候抛出异常
@@ -81,7 +87,7 @@ def process_images(paths: list[str], ignore_small_images=True):
     """
     new_paths, images = [], []
     for path in paths:
-        image = get_image_data(path)
+        image = get_image_data(path, ignore_small_images)
         if image is None:
             continue
         new_paths.append(path)
