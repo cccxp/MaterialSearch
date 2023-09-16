@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import platform
+import signal
 import subprocess
 
 import numpy as np
@@ -89,3 +90,25 @@ def crop_video(input_file, output_file, start_time, end_time):
         output_file
     ]
     subprocess.run(command)
+
+
+class DelayedKeyboardInterrupt:
+    """
+    延迟键盘中断，避免导致数据不一致的情况。
+    通过 with 语句使用。
+    参考:
+    https://stackoverflow.com/questions/842557/how-to-prevent-a-block-of-code-from-being-interrupted-by-keyboardinterrupt-in-py
+    ```
+    """
+    def __enter__(self):
+        self.signal_received = False
+        self.old_handler = signal.signal(signal.SIGINT, self.handler)
+
+    def handler(self, sig, frame):
+        self.signal_received = (sig, frame)
+        logging.info('SIGINT received. Delaying KeyboardInterrupt.')
+    
+    def __exit__(self, type, value, traceback):
+        signal.signal(signal.SIGINT, self.old_handler)
+        if self.signal_received:
+            self.old_handler(*self.signal_received)

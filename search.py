@@ -1,6 +1,7 @@
 import base64
 import logging
 import time
+import tqdm
 from functools import lru_cache
 
 import numpy as np
@@ -179,7 +180,8 @@ def search_video_by_feature(
     scores_list = []
     data_list = []
     with SessionLocal() as session:
-        for path in crud.get_video_paths(session):  # 逐个视频比对
+        video_count = crud.get_video_count(session)
+        for path in tqdm.tqdm(crud.get_video_paths(session), desc='搜索视频中', total=video_count):  # 逐个视频比对
             frame_times, features = crud.get_frame_times_features_by_path(session, path)
             features = np.frombuffer(b"".join(features), dtype=np.float32).reshape(
                 len(features), -1
