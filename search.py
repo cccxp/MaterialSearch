@@ -67,7 +67,7 @@ def search_image_by_feature(
     softmax_scores = softmax(scores_list)
     return_list = [
         {
-            "url": "api/get_image/%d" % id,
+            "url": "/api/get_image/%d" % id,
             "path": path,
             "score": float(score.max()),  # XXX: 使用 max 为了避免强转导致的 Warning
             "softmax_score": float(softmax_score.max()),  # 同上
@@ -204,7 +204,7 @@ def search_video_by_feature(
     softmax_scores = softmax(scores_list)
     return_list = [
         {
-            "url": "api/get_video/%s" % base64.urlsafe_b64encode(path.encode()).decode()
+            "url": "/api/get_video/%s" % base64.urlsafe_b64encode(path.encode()).decode()
             + "#t=%.1f,%.1f" % (start_time, end_time),
             "path": path,
             "score": float(score.max()),  # XXX: 使用 max 为了避免强转导致的 Warning
@@ -277,7 +277,7 @@ def search_image_file(path: str):
         id_paths = crud.search_image_by_path(session, path)
         file_list = [
             {
-                "url": "api/get_image/%d" % id,
+                "url": "/api/get_image/%d" % id,
                 "path": path,
             }
             for id, path in id_paths
@@ -296,7 +296,7 @@ def search_video_file(path: str):
         paths = crud.search_video_by_path(session, path)
         file_list = [
             {
-                "url": "api/get_video/%s"
+                "url": "/api/get_video/%s"
                 % base64.urlsafe_b64encode(path.encode()).decode(),
                 "path": path,
             }

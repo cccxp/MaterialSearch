@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>本地素材搜索器</title>
     <!--<link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/element-ui/2.15.3/theme-chalk/index.css">-->
-    <link rel="stylesheet" href="static/index.css">
+    <link rel="stylesheet" href="/static/index.css">
 </head>
 <body>
 <el-main id="app" v-loading="loading" class="">
@@ -62,7 +62,7 @@
             </el-tab-pane>
 
             <el-tab-pane label="以图搜图">
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
                 </el-upload>
@@ -103,7 +103,7 @@
             </el-tab-pane>
 
             <el-tab-pane label="以图搜视频">
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
                 </el-upload>
@@ -151,7 +151,7 @@
 
             <el-tab-pane label="图文相似度匹配">
                 <el-input placeholder="文字内容（不能为空）" v-model="form.text" class="input-with-select"></el-input>
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
                 </el-upload>
@@ -206,10 +206,10 @@
 <!--<script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.6/dist/clipboard.min.js"></script>-->
 <!--<script src="https://cdnjs.loli.net/ajax/libs/element-ui/2.15.3/index.js"></script>-->
 <!--<script src="https://cdnjs.loli.net/ajax/libs/axios/0.19.0-beta.1/axios.min.js"></script>-->
-<script src="static/vue.min.js"></script><!-- import Vue before Element -->
-<script src="static/clipboard.min.js"></script>
-<script src="static/index.js"></script>
-<script src="static/axios.min.js"></script>
+<script src="/static/vue.min.js"></script><!-- import Vue before Element -->
+<script src="/static/clipboard.min.js"></script>
+<script src="/static/index.js"></script>
+<script src="/static/axios.min.js"></script>
 
 <script>
 function formatTime(seconds) {
@@ -272,7 +272,7 @@ new Vue({
     methods: {
         loadData: function() {
             var that = this;
-            axios.get('api/status')
+            axios.get('/api/status')
                 .then(function(response) {
                     console.log(response);
                     that.status = response["data"];
@@ -287,7 +287,7 @@ new Vue({
         },
         scan: function() {
             var that = this;
-            axios.get('api/scan')
+            axios.get('/api/scan')
                 .then(function(response) {
                     console.log(response);
                     that.loadData();
@@ -364,7 +364,7 @@ new Vue({
         },
         cleanCache() {
             var that = this;
-            axios.get('api/clean_cache')
+            axios.get('/api/clean_cache')
                 .then(function(response) {
                     that.$message.info(response.data);
                 })

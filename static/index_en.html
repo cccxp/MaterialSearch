@@ -62,7 +62,7 @@
             </el-tab-pane>
 
             <el-tab-pane label="Image-based image search">
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">Drag files here, or <em>click here to upload</em></div>
                 </el-upload>
@@ -103,7 +103,7 @@
             </el-tab-pane>
 
             <el-tab-pane label="Image-based video search">
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">Drag files here, or <em>click here to upload</em></div>
                 </el-upload>
@@ -151,7 +151,7 @@
 
             <el-tab-pane label="Calculation of image-text similarity">
                 <el-input placeholder="Text Content (cannot be empty)" v-model="form.text" class="input-with-select"></el-input>
-                <el-upload ref="upload" drag action="api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
+                <el-upload ref="upload" drag action="/api/upload" limit="1" multiple="false" :limit="1" :on-exceed="handleExceed">
                     <i class="el-icon-upload"></i>
                     <div class="el-upload__text">Drag files here, or <em>click here to upload</em></div>
                 </el-upload>
@@ -268,7 +268,7 @@ new Vue({
     methods: {
         loadData: function() {
             var that = this;
-            axios.get('api/status')
+            axios.get('/api/status')
                 .then(function(response) {
                     console.log(response);
                     that.status = response["data"];
@@ -283,7 +283,7 @@ new Vue({
         },
         scan: function() {
             var that = this;
-            axios.get('api/scan')
+            axios.get('/api/scan')
                 .then(function(response) {
                     console.log(response);
                     that.loadData();
@@ -360,7 +360,7 @@ new Vue({
         },
         cleanCache() {
             var that = this;
-            axios.get('api/clean_cache')
+            axios.get('/api/clean_cache')
                 .then(function(response) {
                     that.$message.info(response.data);
                 })
