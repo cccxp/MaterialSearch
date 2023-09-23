@@ -46,9 +46,9 @@ def get_image_data(path: str, ignore_small_images: bool):
             # 避免 Png Bomb 攻击
             # https://github.com/ptrofimov/png-bomb-protection
             if any((
-                width * height > IMAGE_MAX_PIXELS,
-                width < IMAGE_MIN_WIDTH, 
-                height < IMAGE_MIN_HEIGHT
+                width * height > scan_config.get('imageMaxPixels'),
+                width < scan_config.get('imageMinWidth'), 
+                height < scan_config.get('imageMinHeight')
             )):
                 return None 
         # processor 中也会这样预处理 Image
@@ -109,7 +109,7 @@ def get_frames(video: cv2.VideoCapture):
     logger.debug(f"fps: {frame_rate} total: {total_frames}")
     ids, frames = [], []
     for current_frame in trange(
-        0, total_frames, FRAME_INTERVAL * frame_rate, desc="当前进度", unit="frame"
+        0, total_frames, scan_config.get('frameInterval') * frame_rate, desc="当前进度", unit="frame"
     ):
         # 在 FRAME_INTERVAL 为 2（默认值），frame_rate 为 24
         # 即 FRAME_INTERVAL * frame_rate == 48 时测试
@@ -121,11 +121,11 @@ def get_frames(video: cv2.VideoCapture):
             break
         ids.append(current_frame // frame_rate)
         frames.append(frame)
-        if  len(frames) == SCAN_PROCESS_BATCH_SIZE:
+        if  len(frames) == scan_config.get('scanProcessBatchSize'):
             yield ids, frames
             ids = []
             frames = []
-        for _ in range(FRAME_INTERVAL * frame_rate - 1):
+        for _ in range(scan_config.get('frameInterval') * frame_rate - 1):
             video.grab()  # 跳帧
     yield ids, frames
 

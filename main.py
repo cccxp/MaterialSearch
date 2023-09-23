@@ -65,7 +65,8 @@ def init():
     os.makedirs('./var/main-instance/', exist_ok=True)
     scanner.init()
     optimize_db()  # 数据库优化（临时功能）
-    if AUTO_SCAN:
+    if scan_config.get('autoScan'):
+        # FIXME：运行时开启自动扫描
         auto_scan_thread = threading.Thread(target=scanner.auto_scan, args=())
         auto_scan_thread.start()
 

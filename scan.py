@@ -3,9 +3,10 @@ import logging
 import pickle
 import time
 from pathlib import Path
+import os
 
 import crud
-from config import *
+from config import scan_config, TEMP_PATH, ENABLE_LOGIN
 from database import SessionLocal
 from models import create_tables
 from process_assets import process_image, process_video
@@ -26,20 +27,23 @@ class Scanner:
         self.total_videos = 0
         self.total_video_frames = 0
         self.scanned_files = 0
+        self.current_file = ''
         self.is_continue_scan = False
         self.logger = logging.getLogger(__name__)
         self.temp_file = f"{TEMP_PATH}/assets.pickle"
         self.assets = set()
 
         # 自动扫描时间
-        self.start_time = datetime.time(*AUTO_SCAN_START_TIME)
-        self.end_time = datetime.time(*AUTO_SCAN_END_TIME)
+        self.start_time = scan_config.get('autoScanStartTime_')
+        self.end_time = scan_config.get('autoScanEndTime_')
         self.is_cross_day = self.start_time > self.end_time  # 是否跨日期
 
         # 处理跳过路径
-        self.skip_paths = [Path(i) for i in SKIP_PATH if i]
-        self.ignore_keywords = [i for i in IGNORE_STRINGS if i]
-        self.extensions = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
+        self.skip_paths = [Path(i) for i in scan_config.get('skipPaths') if i]
+        self.ignore_keywords = [i for i in scan_config.get('ignoreStrings') if i]
+        self.imageExtensions = tuple(scan_config.get('imageExtensions'))
+        self.videoExtensions = tuple(scan_config.get('videoExtensions'))
+        self.extensions = self.imageExtensions + self.videoExtensions
 
     def init(self):
         create_tables()
@@ -73,6 +77,7 @@ class Scanner:
             "scanning_files": self.scanning_files,
             "remain_files": self.scanning_files - self.scanned_files,
             "progress": progress,
+            "current_file": self.current_file,
             "remain_time": int(remain_time),
             "enable_login": ENABLE_LOGIN,
         }
@@ -140,11 +145,14 @@ class Scanner:
         :return: None
         """
         self.assets = set()
-        paths = [Path(i) for i in ASSETS_PATH if i]
+        paths = [Path(i) for i in scan_config.get('assetsPaths') if i]
         # 遍历根目录及其子目录下的所有文件
         for path in paths:
             for file in filter(self.filter_path, path.rglob("*")):
                 self.assets.add(str(file))
+
+    def stop_scan(self):
+        self.is_scanning = False
 
     def scan(self, auto=False):
         """
@@ -165,19 +173,23 @@ class Scanner:
             for path in self.assets.copy():
                 self.scanned_files += 1
                 if (
-                    self.scanned_files % AUTO_SAVE_INTERVAL == 0
+                    self.scanned_files % scan_config.get('autoScanInterval') == 0
                 ):  # 每扫描 AUTO_SAVE_INTERVAL 个文件重新save一下
                     self.save_assets()
                 if auto and not self.is_current_auto_scan_time():  # 如果是自动扫描，判断时间自动停止
-                    self.logger.info(f"超出自动扫描时间，停止扫描")
+                    self.logger.info("超出自动扫描时间，停止扫描")
                     break
+                if not self.is_scanning:
+                    self.logger.info("停止扫描")
+                    break
+                self.current_file = path
                 # 如果文件不存在，则忽略（扫描时文件被移动或删除则会触发这种情况）
                 if not os.path.isfile(path):
                     continue
                 modify_time = os.path.getmtime(path)
                 modify_time = datetime.datetime.fromtimestamp(modify_time)
                 # 如果数据库里有这个文件，并且修改时间一致，则跳过，否则进行预处理并入库
-                if path.lower().endswith(IMAGE_EXTENSIONS):  # 图片
+                if path.lower().endswith(self.imageExtensions):  # 图片
                     not_modified = crud.delete_image_if_outdated(
                         session, path, modify_time
                     )
@@ -192,7 +204,7 @@ class Scanner:
                     features = features.tobytes()
                     crud.add_image(session, path, modify_time, features)
                     self.total_images = crud.get_image_count(session)
-                elif path.lower().endswith(VIDEO_EXTENSIONS):  # 视频
+                elif path.lower().endswith(self.videoExtensions):  # 视频
                     not_modified = crud.delete_video_if_outdated(
                         session, path, modify_time
                     )

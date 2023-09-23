@@ -3,11 +3,13 @@ import logging
 import shutil
 import threading
 from contextlib import asynccontextmanager
-from typing import Union, Annotated
+from typing import Annotated, Union
 
-from fastapi import APIRouter, FastAPI, UploadFile, status, Path
+from fastapi import APIRouter, BackgroundTasks, FastAPI, Path, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 import crud
 from config import *
@@ -76,16 +78,23 @@ async def lifespan(app: FastAPI):
     os.makedirs("./var/main-instance/", exist_ok=True)
     scanner.init()
     optimize_db()  # 数据库优化（临时功能）
-    if AUTO_SCAN:
+    if scan_config.get('autoScan'):
         auto_scan_thread = threading.Thread(target=scanner.auto_scan, args=())
         auto_scan_thread.start()
     yield
     # yield 后的部分为此前 shutdown 事件
     # 在这里编写清理代码
-    ...
 
-
-app = FastAPI(lifespan=lifespan)
+middleware = [
+    Middleware(
+    CORSMiddleware,
+    allow_origins=ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+    )
+]
+app = FastAPI(lifespan=lifespan, middleware=middleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 router = APIRouter(prefix="/api")
 
@@ -97,13 +106,11 @@ def index_page():
 
 
 @router.get("/scan", response_model=ScanStartResponse)
-def api_scan():
+def api_scan(backgroundtasks: BackgroundTasks):
     """开始扫描"""
     global scanner
     if not scanner.is_scanning:
-        # FIXME: 使用 BackgroundTasks
-        scan_thread = threading.Thread(target=scanner.scan, args=(False,))
-        scan_thread.start()
+        backgroundtasks.add_task(scanner.scan, False)
         return ScanStartResponse(status="start scanning")
     return ScanStartResponse(status="already scanning")
 
@@ -144,22 +151,26 @@ def api_match(r: MatchRequest):
         case 0:
             results = search_image_by_text(
                 r.positive, r.negative, r.positive_threshold, r.negative_threshold
-            )[:r.top_n]
+            )[: r.top_n]
             results = [SearchImageResponse(**i) for i in results]
         case 1:  # 以图搜图
             if not upload_file_path:
                 return Response(status_code=status.HTTP_400_BAD_REQUEST)
-            results = search_image_by_image(upload_file_path, r.image_threshold)[:r.top_n]
+            results = search_image_by_image(upload_file_path, r.image_threshold)[
+                : r.top_n
+            ]
             results = [SearchImageResponse(**i) for i in results]
         case 2:  # 文字搜视频
             results = search_video_by_text(
                 r.positive, r.negative, r.positive_threshold, r.negative_threshold
-            )[:r.top_n]
+            )[: r.top_n]
             results = [SearchVideoResponse(**i) for i in results]
         case 3:  # 以图搜视频
             if not upload_file_path:
                 return Response(status_code=status.HTTP_400_BAD_REQUEST)
-            results = search_video_by_image(upload_file_path, r.image_threshold)[:r.top_n]
+            results = search_video_by_image(upload_file_path, r.image_threshold)[
+                : r.top_n
+            ]
             results = [SearchVideoResponse(**i) for i in results]
         case 4:  # 图文相似度匹配
             if not upload_file_path:
@@ -171,16 +182,16 @@ def api_match(r: MatchRequest):
                 * 100
             )
         case 5:  # 以图搜图(图片是数据库中的)
-            results = search_image_by_image(r.img_id, r.image_threshold)[:r.top_n]
+            results = search_image_by_image(r.img_id, r.image_threshold)[: r.top_n]
             results = [SearchImageResponse(**i) for i in results]
         case 6:  # 以图搜视频(图片是数据库中的)
-            results = search_video_by_image(r.img_id, r.image_threshold)[:r.top_n]
+            results = search_video_by_image(r.img_id, r.image_threshold)[: r.top_n]
             results = [SearchVideoResponse(**i) for i in results]
         case 7:  # 路径搜图
-            results = search_image_file(r.path)[:r.top_n]
+            results = search_image_file(r.path)[: r.top_n]
             results = [SearchByPathResponse(**i) for i in results]
         case 8:  # 路径搜视频
-            results = search_video_file(r.path)[:r.top_n]
+            results = search_video_file(r.path)[: r.top_n]
             results = [SearchByPathResponse(**i) for i in results]
         case _:  # 空
             logger.warning(f"search_type不正确：{r.search_type}")
@@ -189,7 +200,7 @@ def api_match(r: MatchRequest):
 
 
 @router.get("/get_image/{image_id}")
-def api_get_image(image_id: Annotated[int, Path(title='图片ID')]):
+def api_get_image(image_id: Annotated[int, Path(title="图片ID")]):
     """
     读取图片
     :param image_id: int, 图片在数据库中的id
@@ -202,7 +213,7 @@ def api_get_image(image_id: Annotated[int, Path(title='图片ID')]):
 
 
 @router.get("/get_video/{video_path}")
-def api_get_video(video_path: Annotated[str, Path(title='视频路径')]):
+def api_get_video(video_path: Annotated[str, Path(title="视频路径")]):
     """
     读取视频
     :param video_path: string, 经过base64.urlsafe_b64encode的字符串，解码后可以得到视频在服务器上的绝对路径
@@ -256,7 +267,14 @@ def api_upload(file: UploadFile):
     upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
     with open(upload_file_path, "wb") as f:
         f.write(file.read())
-    return filehash  # 返回文件哈希值，用于后续搜索时传入
+    return {
+        'filehash': filehash
+    }  # 返回文件哈希值，用于后续搜索时传入
 
 
 app.include_router(router)
+
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run('fastapi_main:app', host=HOST, port=PORT, reload=FLASK_DEBUG)

@@ -1,31 +1,128 @@
+import datetime
 import os
-
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+import logging
+
 
 # 加载.env文件中的环境变量
 load_dotenv()
+logger = logging.getLogger(__name__)
+
+class ScanConfigModel(BaseModel):
+    assetsPaths: list[str] = Field(['/home', '/srv'], description='素材所在的目录(绝对路径)')
+    skipPaths: list[str] = Field(['/tmp'], description='跳过扫描的目录(绝对路径)')
+    ignoreStrings: list[str] = Field(['thumb','avatar','__macosx','icons','cache'], description='如果路径或文件名包含这些字符串，就跳过，不区分大小写')
+    imageExtensions: list[str] = Field(['.jpg', '.jpeg','.png','.gif'], description='支持的图片拓展名，小写')
+    videoExtensions: list[str] = Field(['.mp4','.flv','.mov','.mkv', '.avi'], description='支持的视频拓展名，小写')
+    frameInterval: int = Field(2, description='视频每隔多少秒取一帧，视频展示的时候，间隔小于等于2倍FRAME_INTERVAL的算为同一个素材，同时开始时间和结束时间各延长0.5个FRAME_INTERVAL')
+    imageMinWidth: int = Field(64, description='图片最小宽度，小于此宽度则忽略。不需要可以改成0')
+    imageMinHeight:int = Field(64, description='图片最小高度，小于此高度则忽略。不需要可以改成0')
+    imageMaxPixels: int = Field(100000000, description='图片最大像素数，大于则忽略（避免 PNG Bomb 攻击）')
+    autoScan: bool = Field(False, description='是否自动扫描，如果开启，则会在指定时间内进行扫描')
+    autoScanStartTime: str = Field("22:30", description='自动扫描开始时间')
+    autoScanEndTime: str = Field("8:00", description='自动扫描结束时间')
+    autoScanInterval: int = Field(100, description='扫描自动保存间隔')
+    scanProcessBatchSize: int = Field(32, description='扫描的视频批处理数量，默认每读取32帧计算一次特征，设置太高或太低都会降低视频扫描效率')
+
+    @property  # property 默认不序列化，也无需序列化
+    def autoScanStartTime_(self):
+        # 自动扫描开始时间(转为datetime.time)
+        return datetime.time(*tuple(map(int, self.autoScanStartTime.split(':'))))
+
+    @property
+    def autoScanEndTime_(self):
+        # 自动扫描结束时间(转为datetime.time)
+        return datetime.time(*tuple(map(int, self.autoScanEndTime.split(':'))))
+
+
+class ScanConfig:
+    def __init__(self) -> None:
+        self._config = ScanConfigModel()
+        os.makedirs('./config', exist_ok=True)
+        self.config_path = './config/scan.json'
+        if os.path.exists(self.config_path):
+            # 读取配置文件
+            self.load_config_from_file()
+        else:
+            # 初次 dump 默认配置到文件
+            # 兼容曾经使用环境变量设置的值
+            self._config = ScanConfigModel(
+                assetsPaths = os.getenv('ASSETS_PATH', '/home,/srv').split(','),
+                skipPaths = os.getenv('SKIP_PATH', '/tmp').split(','),
+                imageExtensions = os.getenv('IMAGE_EXTENSIONS', '.jpg,.jpeg,.png,.gif').split(','),
+                videoExtensions = os.getenv('VIDEO_EXTENSIONS', '.mp4,.flv,.mov,.mkv').split(','),
+                ignoreStrings = os.getenv('IGNORE_STRINGS', 'thumb,avatar,__macosx,icons,cache').split(','),
+                frameInterval = int(os.getenv('FRAME_INTERVAL', 2)),
+                imageMinWidth = int(os.getenv('IMAGE_MIN_WIDTH', 64)),
+                imageMinHeight = int(os.getenv('IMAGE_MIN_HEIGHT', 64)),
+                imageMaxPixels = int(os.getenv('IMAGE_MAX_PIXELS', 100000000)),
+                autoScan = os.getenv('AUTO_SCAN', 'False').lower() == 'true',
+                autoScanStartTime = os.getenv('AUTO_SCAN_START_TIME', '22:30'),
+                autoScanEndTime = os.getenv('AUTO_SCAN_END_TIME', '8:00'),
+                autoScanInterval = int(os.getenv('AUTO_SAVE_INTERVAL', 100)),
+                scanProcessBatchSize = int(os.getenv('SCAN_PROCESS_BATCH_SIZE', 32)),
+            )
+            self.save_config_to_file()
+
+    def load_config_from_file(self):
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            try:
+                self._config = ScanConfigModel.model_validate_json(f.read())
+            except ValueError as e:
+                logger.error(f'{self.config_path} 配置文件错误')
+                logger.error(f'{repr(e)}')
+        logger.info('读取扫描配置文件成功')
+
+    def save_config_to_file(self):
+        with open(self.config_path, 'w', encoding='utf-8') as f:
+            f.write(self._config.model_dump_json(indent=4))
+
+    def get(self, key: str):
+        """
+        获取配置项
+        """
+        try:
+            ret = getattr(self._config, key)
+            return ret
+        except AttributeError:
+            logger.error(f'scan config not found: {key}')
+
+    def set(self, key: str, value):
+        """
+        设置配置项
+        """
+        try:
+            setattr(self._config, key, value)
+        except AttributeError:
+            logger.error(f'scan config set error: {key}: {value}')
+        self.save_config_to_file()
+
+    def set_all(self, **kwargs):
+        """
+        通过参数设置多个配置项
+        """
+        try:
+            self._config = ScanConfig(**kwargs)
+        except ValueError as e:
+            logger.error(f'{self.config_path} 配置文件设置错误')
+            logger.error(f'{repr(e)}')
+        self.save_config_to_file()
+
+    def reset(self):
+        """
+        恢复默认值
+        """
+        self._config = ScanConfig()
+        self.save_config_to_file()
+
+
+scan_config = ScanConfig()
 
 # *****服务器配置*****
 HOST = os.getenv('HOST', '0.0.0.0')  # 监听IP，如果只想本地访问，把这个改成127.0.0.1
 PORT = int(os.getenv('PORT', 8085))  # 监听端口
-
-# *****扫描配置*****
-# Windows系统的路径写法例子：'D:/照片'
-ASSETS_PATH = tuple(os.getenv('ASSETS_PATH', '/home,/srv').split(','))  # 素材所在的目录，绝对路径，逗号分隔
-SKIP_PATH = tuple(os.getenv('SKIP_PATH', '/tmp').split(','))  # 跳过扫描的目录，绝对路径，逗号分隔
-IMAGE_EXTENSIONS = tuple(os.getenv('IMAGE_EXTENSIONS', '.jpg,.jpeg,.png,.gif').split(','))  # 支持的图片拓展名，逗号分隔，请填小写
-VIDEO_EXTENSIONS = tuple(os.getenv('VIDEO_EXTENSIONS', '.mp4,.flv,.mov,.mkv').split(','))  # 支持的视频拓展名，逗号分隔，请填小写
-IGNORE_STRINGS = tuple(os.getenv('IGNORE_STRINGS', 'thumb,avatar,__MACOSX,icons,cache').lower().split(','))  # 如果路径或文件名包含这些字符串，就跳过，逗号分隔，不区分大小写
-FRAME_INTERVAL = int(os.getenv('FRAME_INTERVAL', 2))  # 视频每隔多少秒取一帧，视频展示的时候，间隔小于等于2倍FRAME_INTERVAL的算为同一个素材，同时开始时间和结束时间各延长0.5个FRAME_INTERVAL
-IMAGE_MIN_WIDTH = int(os.getenv('IMAGE_MIN_WIDTH', 64))  # 图片最小宽度，小于此宽度则忽略。不需要可以改成0。
-IMAGE_MIN_HEIGHT = int(os.getenv('IMAGE_MIN_HEIGHT', 64))  # 图片最小高度，小于此高度则忽略。不需要可以改成0。
-IMAGE_MAX_PIXELS = int(os.getenv('IMAGE_MAX_PIXELS', 100000000))  # 图片最大像素数，大于则忽略（避免 PNG Bomb 攻击）
-AUTO_SCAN = os.getenv('AUTO_SCAN', 'False').lower() == 'true'  # 是否自动扫描，如果开启，则会在指定时间内进行扫描
-AUTO_SCAN_START_TIME = tuple(map(int, os.getenv('AUTO_SCAN_START_TIME', '22:30').split(':')))  # 自动扫描开始时间
-AUTO_SCAN_END_TIME = tuple(map(int, os.getenv('AUTO_SCAN_END_TIME', '8:00').split(':')))  # 自动扫描结束时间
-AUTO_SAVE_INTERVAL = int(os.getenv('AUTO_SAVE_INTERVAL', 100))  # 扫描自动保存间隔，默认为每 100 个文件自动保存一次
-# 扫描的视频批处理数量，默认每读取32帧计算一次特征，设置太高或太低都会降低视频扫描效率
-SCAN_PROCESS_BATCH_SIZE = int(os.getenv('SCAN_PROCESS_BATCH_SIZE', 32))
+ALLOW_ORIGINS = os.getenv('ALLOW_ORIGINS', '').split(',')  # 允许访问API的IP地址，逗号分隔（用于调试前端）
 
 # *****模型配置*****
 # 目前支持中文或英文搜索，只能二选一。英文搜索速度会更快。中文搜索需要额外下载模型，而且搜索英文或NSFW内容的效果不好。
