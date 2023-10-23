@@ -309,4 +309,4 @@ def api_upload():
 
 if __name__ == "__main__":
     init()
-    app.run(port=PORT, host=HOST, debug=FLASK_DEBUG)
+    app.run(port=PORT, host=HOST, debug=HOT_RELOAD)

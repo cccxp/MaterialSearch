@@ -1,15 +1,24 @@
+import abc
 import datetime
-import os
-from pydantic import BaseModel, Field
-from dotenv import load_dotenv
+import inspect
 import logging
+import os
 
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 # 加载.env文件中的环境变量
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-class ScanConfigModel(BaseModel):
+class BaseConfigModel(BaseModel):
+    def __repr__(self) -> str:
+        ret = str(self.__class__) + '\n'
+        for k, v in self.model_dump().items():
+            ret += f'\t{k}: {repr(v)}\n'
+        return ret
+
+class ScanConfigModel(BaseConfigModel):
     assetsPaths: list[str] = Field(['/home', '/srv'], description='素材所在的目录(绝对路径)')
     skipPaths: list[str] = Field(['/tmp'], description='跳过扫描的目录(绝对路径)')
     ignoreStrings: list[str] = Field(['thumb','avatar','__macosx','icons','cache'], description='如果路径或文件名包含这些字符串，就跳过，不区分大小写')
@@ -36,39 +45,44 @@ class ScanConfigModel(BaseModel):
         return datetime.time(*tuple(map(int, self.autoScanEndTime.split(':'))))
 
 
-class ScanConfig:
-    def __init__(self) -> None:
-        self._config = ScanConfigModel()
+class BaseConfig(metaclass=abc.ABCMeta):
+    @property
+    @abc.abstractmethod
+    def config_path(self) -> str:
+        return './config/abstract_config.json'
+    
+    def __repr__(self) -> str:
+        return repr(self.config)
+ 
+    @property
+    def config(self):
+        return self._config 
+
+    @config.setter 
+    def config(self, data):
+        self._config = data
+    
+    def __init__(self, config_model: BaseConfigModel) -> None:
+        self.config = ScanConfigModel()
         os.makedirs('./config', exist_ok=True)
-        self.config_path = './config/scan.json'
         if os.path.exists(self.config_path):
             # 读取配置文件
             self.load_config_from_file()
         else:
+            self.load_config_from_env()
             # 初次 dump 默认配置到文件
-            # 兼容曾经使用环境变量设置的值
-            self._config = ScanConfigModel(
-                assetsPaths = os.getenv('ASSETS_PATH', '/home,/srv').split(','),
-                skipPaths = os.getenv('SKIP_PATH', '/tmp').split(','),
-                imageExtensions = os.getenv('IMAGE_EXTENSIONS', '.jpg,.jpeg,.png,.gif').split(','),
-                videoExtensions = os.getenv('VIDEO_EXTENSIONS', '.mp4,.flv,.mov,.mkv').split(','),
-                ignoreStrings = os.getenv('IGNORE_STRINGS', 'thumb,avatar,__macosx,icons,cache').split(','),
-                frameInterval = int(os.getenv('FRAME_INTERVAL', 2)),
-                imageMinWidth = int(os.getenv('IMAGE_MIN_WIDTH', 64)),
-                imageMinHeight = int(os.getenv('IMAGE_MIN_HEIGHT', 64)),
-                imageMaxPixels = int(os.getenv('IMAGE_MAX_PIXELS', 100000000)),
-                autoScan = os.getenv('AUTO_SCAN', 'False').lower() == 'true',
-                autoScanStartTime = os.getenv('AUTO_SCAN_START_TIME', '22:30'),
-                autoScanEndTime = os.getenv('AUTO_SCAN_END_TIME', '8:00'),
-                autoScanInterval = int(os.getenv('AUTO_SAVE_INTERVAL', 100)),
-                scanProcessBatchSize = int(os.getenv('SCAN_PROCESS_BATCH_SIZE', 32)),
-            )
             self.save_config_to_file()
+    
+    @abc.abstractmethod
+    def load_config_from_env(self):
+        # 从环境变量加载配置
+        # 兼容曾经使用环境变量设置的值
+        pass 
 
     def load_config_from_file(self):
         with open(self.config_path, 'r', encoding='utf-8') as f:
             try:
-                self._config = ScanConfigModel.model_validate_json(f.read())
+                self.config = ScanConfigModel.model_validate_json(f.read())
             except ValueError as e:
                 logger.error(f'{self.config_path} 配置文件错误')
                 logger.error(f'{repr(e)}')
@@ -76,14 +90,14 @@ class ScanConfig:
 
     def save_config_to_file(self):
         with open(self.config_path, 'w', encoding='utf-8') as f:
-            f.write(self._config.model_dump_json(indent=4))
+            f.write(self.config.model_dump_json(indent=4))
 
     def get(self, key: str):
         """
         获取配置项
         """
         try:
-            ret = getattr(self._config, key)
+            ret = getattr(self.config, key)
             return ret
         except AttributeError:
             logger.error(f'scan config not found: {key}')
@@ -93,7 +107,7 @@ class ScanConfig:
         设置配置项
         """
         try:
-            setattr(self._config, key, value)
+            setattr(self.config, key, value)
         except AttributeError:
             logger.error(f'scan config set error: {key}: {value}')
         self.save_config_to_file()
@@ -103,19 +117,57 @@ class ScanConfig:
         通过参数设置多个配置项
         """
         try:
-            self._config = ScanConfig(**kwargs)
+            self.config = ScanConfig(**kwargs)
         except ValueError as e:
             logger.error(f'{self.config_path} 配置文件设置错误')
             logger.error(f'{repr(e)}')
         self.save_config_to_file()
 
-    def reset(self):
-        """
-        恢复默认值
-        """
-        self._config = ScanConfig()
-        self.save_config_to_file()
 
+class ScanConfig(BaseConfig):
+
+    @property
+    def config_path(self) -> str:
+        return './config/scan.json'
+
+    def __init__(self) -> None:
+        super().__init__(ScanConfigModel)
+
+    def load_config_from_env(self):
+        self.config = ScanConfigModel(
+            assetsPaths = os.getenv('ASSETS_PATH', '/home,/srv').split(','),
+            skipPaths = os.getenv('SKIP_PATH', '/tmp').split(','),
+            imageExtensions = os.getenv('IMAGE_EXTENSIONS', '.jpg,.jpeg,.png,.gif').split(','),
+            videoExtensions = os.getenv('VIDEO_EXTENSIONS', '.mp4,.flv,.mov,.mkv').split(','),
+            ignoreStrings = os.getenv('IGNORE_STRINGS', 'thumb,avatar,__macosx,icons,cache').split(','),
+            frameInterval = int(os.getenv('FRAME_INTERVAL', 2)),
+            imageMinWidth = int(os.getenv('IMAGE_MIN_WIDTH', 64)),
+            imageMinHeight = int(os.getenv('IMAGE_MIN_HEIGHT', 64)),
+            imageMaxPixels = int(os.getenv('IMAGE_MAX_PIXELS', 100000000)),
+            autoScan = os.getenv('AUTO_SCAN', 'False').lower() == 'true',
+            autoScanStartTime = os.getenv('AUTO_SCAN_START_TIME', '22:30'),
+            autoScanEndTime = os.getenv('AUTO_SCAN_END_TIME', '8:00'),
+            autoScanInterval = int(os.getenv('AUTO_SAVE_INTERVAL', 100)),
+            scanProcessBatchSize = int(os.getenv('SCAN_PROCESS_BATCH_SIZE', 32)),
+        )
+
+
+class ModelConfigModel(BaseConfigModel):
+    # TODO
+    pass 
+
+class ModelConfig(BaseConfig):
+    # TODO 
+    pass 
+
+
+class SearchConfigModel(BaseConfigModel):
+    # TODO 
+    pass 
+
+class SearchConfig(BaseConfig):
+    # TODO
+    pass 
 
 scan_config = ScanConfig()
 
@@ -155,11 +207,20 @@ VIDEO_EXTENSION_LENGTH = int(os.getenv('VIDEO_EXTENSION_LENGTH', 0))  # 下载�
 ENABLE_LOGIN = os.getenv('ENABLE_LOGIN', 'False').lower() == 'true'  # 是否启用登录
 USERNAME = os.getenv('USERNAME', 'admin')  # 登录用户名
 PASSWORD = os.getenv('PASSWORD', 'MaterialSearch')  # 登录密码
-FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'  # flask 调试开关（热重载）
+HOT_RELOAD = os.getenv('HOT_RELOAD', 'False').lower() == 'true'  # flask / fastapi 调试开关（热重载）
 # *****打印配置内容*****
+
+def config_variable_filter(data):
+    k, v = data  # 解包
+    if any((inspect.ismodule(v), inspect.isclass(v), inspect.isfunction(v))):
+        return False  # 跳过模块、类、函数
+    # 如果变量名第一个字母为大写或以 config 结尾，则为配置
+    return k[0].isupper() or k.endswith('config')
+
+
 print("********** 运行配置 / RUNNING CONFIGURATIONS **********")
 global_vars = globals().copy()
-for var_name, var_value in global_vars.items():
-    if var_name[0].isupper():
-        print(f"{var_name}: {var_value!r}")
+
+for var_name, var_value in filter(config_variable_filter, global_vars.items()):
+    print(f"{var_name}: {var_value!r}")
 print("**************************************************")

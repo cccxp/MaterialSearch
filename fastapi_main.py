@@ -277,4 +277,4 @@ app.include_router(router)
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run('fastapi_main:app', host=HOST, port=PORT, reload=FLASK_DEBUG)
+    uvicorn.run('fastapi_main:app', host=HOST, port=PORT, reload=HOT_RELOAD)
