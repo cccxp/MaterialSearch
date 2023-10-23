@@ -7,7 +7,7 @@ import tqdm
 from sqlalchemy import asc
 from sqlalchemy.orm import Session
 
-from config import MAX_RESULT_NUM
+from config import search_config
 from models import Image, Video
 
 logger = logging.getLogger(__name__)
@@ -222,7 +222,7 @@ def search_image_by_path(session: Session, path: str) -> list[tuple[int, str]]:
         session.query(Image.id, Image.path)
         .filter(Image.path.like("%" + path + "%"))
         .order_by(asc(Image.path))
-        .limit(MAX_RESULT_NUM)
+        .limit(search_config.value.maxResultNum)
         .all()
     )
 
@@ -236,6 +236,6 @@ def search_video_by_path(session: Session, path: str):
         .distinct()
         .filter(Video.path.like("%" + path + "%"))
         .order_by(asc(Video.path))
-        .limit(MAX_RESULT_NUM)
+        .limit(search_config.value.maxResultNum)
         .all()
     )

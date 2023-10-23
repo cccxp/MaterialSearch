@@ -1,39 +1,31 @@
 import base64
 import logging
+import os
 import shutil
 import threading
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
 
-from fastapi import APIRouter, BackgroundTasks, FastAPI, Path, UploadFile, status
+from fastapi import (APIRouter, BackgroundTasks, FastAPI, Path, UploadFile,
+                     status)
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 import crud
-from config import *
+from config import (ALLOW_ORIGINS, HOST, HOT_RELOAD, LOG_LEVEL, PORT,
+                    TEMP_PATH, VIDEO_EXTENSION_LENGTH, scan_config)
 from database import SessionLocal
-from fastapi_schemas import (
-    MatchRequest,
-    MatchTextAndImageResponse,
-    ScanStartResponse,
-    ScanStatusResponse,
-    SearchByPathResponse,
-    SearchImageResponse,
-    SearchVideoResponse,
-)
+from fastapi_schemas import (MatchRequest, MatchTextAndImageResponse,
+                             ScanStartResponse, ScanStatusResponse,
+                             SearchByPathResponse, SearchImageResponse,
+                             SearchVideoResponse)
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
-from search import (
-    clean_cache,
-    search_image_by_image,
-    search_image_by_text,
-    search_image_file,
-    search_video_by_image,
-    search_video_by_text,
-    search_video_file,
-)
+from search import (clean_cache, search_image_by_image, search_image_by_text,
+                    search_image_file, search_video_by_image,
+                    search_video_by_text, search_video_file)
 from utils import crop_video, get_hash
 
 logging.basicConfig(
@@ -78,7 +70,7 @@ async def lifespan(app: FastAPI):
     os.makedirs("./var/main-instance/", exist_ok=True)
     scanner.init()
     optimize_db()  # 数据库优化（临时功能）
-    if scan_config.get('autoScan'):
+    if scan_config.value.autoScan:
         auto_scan_thread = threading.Thread(target=scanner.auto_scan, args=())
         auto_scan_thread.start()
     yield
@@ -241,7 +233,7 @@ def api_download_video_clip(video_path: str, start_time: int, end_time: int):
     with SessionLocal() as session:
         if not crud.is_video_exist(session, path):  # 如果路径不在数据库中，则返回404，防止任意文件读取攻击
             return Response(status_code=status.HTTP_404_NOT_FOUND)
-    # 根据VIDEO_EXTENSION_LENGTH调整时长
+    # 根据 VIDEO_EXTENSION_LENGTH 调整时长
     start_time -= VIDEO_EXTENSION_LENGTH
     end_time += VIDEO_EXTENSION_LENGTH
     if start_time < 0:
@@ -256,17 +248,18 @@ def api_download_video_clip(video_path: str, start_time: int, end_time: int):
 
 
 @router.post("/upload")
-def api_upload(file: UploadFile):
+async def api_upload(file: UploadFile):
     """
-    上传文件。首先删除旧的文件，保存新文件，计算hash，重命名文件。
-    :return: 200
+    上传文件。计算hash, 保存为对应文件名
+    FIXME: 由于无状态的设计，这里无法兼容原 API 
+    FIXME: 同理，登录操作也无法兼容原 API，需要新的设计
     """
     logger.debug(file)
     # 保存文件
     filehash = get_hash(file)
     upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
     with open(upload_file_path, "wb") as f:
-        f.write(file.read())
+        f.write(await file.read())
     return {
         'filehash': filehash
     }  # 返回文件哈希值，用于后续搜索时传入

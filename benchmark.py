@@ -5,20 +5,21 @@ import torch
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel, BertTokenizer, BertForSequenceClassification
 
-from config import *
+from config import model_config
 
 device_list = ["cpu", "cuda", "mps"]  # 推理设备，可选cpu、cuda、mps
 image = Image.open("test.png")  # 测试图片。图片大小影响速度，一般相机照片为4000x3000。图片内容不影响速度。
 input_text = "This is a test sentence."  # 测试文本
 test_times = 100  # 测试次数
 
-print(f"你使用的语言为{MODEL_LANGUAGE}。")
+print(f"你使用的语言为{model_config.value.language}。")
 print("Loading models...")
-clip_model = CLIPModel.from_pretrained(MODEL_NAME)
-clip_processor = CLIPProcessor.from_pretrained(MODEL_NAME)
-if MODEL_LANGUAGE == "Chinese":
-    text_tokenizer = BertTokenizer.from_pretrained(TEXT_MODEL_NAME)
-    text_encoder = BertForSequenceClassification.from_pretrained(TEXT_MODEL_NAME).eval()
+is_chinese = model_config.value.language == "Chinese"
+clip_model = CLIPModel.from_pretrained(model_config.value.name)
+clip_processor = CLIPProcessor.from_pretrained(model_config.value.name)
+if is_chinese:
+    text_tokenizer = BertTokenizer.from_pretrained(model_config.value.textModelName)
+    text_encoder = BertForSequenceClassification.from_pretrained(model_config.value.textModelName).eval()
 print("Models loaded.")
 
 # 图像处理性能基准测试
@@ -50,7 +51,7 @@ min_time = float('inf')
 recommend_device = ''
 for device in device_list:
     try:
-        if MODEL_LANGUAGE == "Chinese":
+        if is_chinese:
             text_encoder = text_encoder.to(torch.device(device))
         else:
             clip_model = clip_model.to(torch.device(device))
@@ -59,7 +60,7 @@ for device in device_list:
         continue
     t0 = time.time()
     for i in range(test_times):
-        if MODEL_LANGUAGE == "Chinese":
+        if is_chinese:
             text = text_tokenizer(input_text, return_tensors='pt', padding=True)['input_ids'].to(torch.device(device))
             text_features = text_encoder(text).logits.detach().cpu().numpy()
         else:

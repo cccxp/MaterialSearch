@@ -34,15 +34,15 @@ class Scanner:
         self.assets = set()
 
         # 自动扫描时间
-        self.start_time = scan_config.get('autoScanStartTime_')
-        self.end_time = scan_config.get('autoScanEndTime_')
+        self.start_time = scan_config.value.autoScanStartTime_
+        self.end_time = scan_config.value.autoScanEndTime_
         self.is_cross_day = self.start_time > self.end_time  # 是否跨日期
 
         # 处理跳过路径
-        self.skip_paths = [Path(i) for i in scan_config.get('skipPaths') if i]
-        self.ignore_keywords = [i for i in scan_config.get('ignoreStrings') if i]
-        self.imageExtensions = tuple(scan_config.get('imageExtensions'))
-        self.videoExtensions = tuple(scan_config.get('videoExtensions'))
+        self.skip_paths = [Path(i) for i in scan_config.value.skipPaths if i]
+        self.ignore_keywords = [i for i in scan_config.value.ignoreStrings if i]
+        self.imageExtensions = tuple(scan_config.value.imageExtensions)
+        self.videoExtensions = tuple(scan_config.value.videoExtensions)
         self.extensions = self.imageExtensions + self.videoExtensions
 
     def init(self):
@@ -145,7 +145,7 @@ class Scanner:
         :return: None
         """
         self.assets = set()
-        paths = [Path(i) for i in scan_config.get('assetsPaths') if i]
+        paths = [Path(i) for i in scan_config.value.assetsPaths if i]
         # 遍历根目录及其子目录下的所有文件
         for path in paths:
             for file in filter(self.filter_path, path.rglob("*")):
@@ -173,7 +173,7 @@ class Scanner:
             for path in self.assets.copy():
                 self.scanned_files += 1
                 if (
-                    self.scanned_files % scan_config.get('autoScanInterval') == 0
+                    self.scanned_files % scan_config.value.autoScanInterval == 0
                 ):  # 每扫描 AUTO_SAVE_INTERVAL 个文件重新save一下
                     self.save_assets()
                 if auto and not self.is_current_auto_scan_time():  # 如果是自动扫描，判断时间自动停止

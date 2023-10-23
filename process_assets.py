@@ -15,19 +15,18 @@ from transformers import (
     CLIPProcessor,
 )
 
-from config import *
+from config import scan_config, model_config
 
 logger = logging.getLogger(__name__)
-
 logger.info("Loading model...")
-model = CLIPModel.from_pretrained(MODEL_NAME).to(torch.device(DEVICE))
-processor = CLIPProcessor.from_pretrained(MODEL_NAME)
-if MODEL_LANGUAGE == "Chinese":
-    text_tokenizer = BertTokenizer.from_pretrained(TEXT_MODEL_NAME)
+model = CLIPModel.from_pretrained(model_config.value.name).to(torch.device(model_config.value.device))
+processor = CLIPProcessor.from_pretrained(model_config.value.name)
+if model_config.value.language == "Chinese":
+    text_tokenizer = BertTokenizer.from_pretrained(model_config.value.textModelName)
     text_encoder = (
-        BertForSequenceClassification.from_pretrained(TEXT_MODEL_NAME)
+        BertForSequenceClassification.from_pretrained(model_config.value.textModelName)
         .eval()
-        .to(torch.device(DEVICE_TEXT))
+        .to(torch.device(model_config.value.textDevice))
     )
 logger.info("Model loaded.")
 
@@ -46,9 +45,9 @@ def get_image_data(path: str, ignore_small_images: bool):
             # 避免 Png Bomb 攻击
             # https://github.com/ptrofimov/png-bomb-protection
             if any((
-                width * height > scan_config.get('imageMaxPixels'),
-                width < scan_config.get('imageMinWidth'), 
-                height < scan_config.get('imageMinHeight')
+                width * height > scan_config.value.imageMaxPixels,
+                width < scan_config.value.imageMinWidth, 
+                height < scan_config.value.imageMinHeight
             )):
                 return None 
         # processor 中也会这样预处理 Image
@@ -73,7 +72,7 @@ def process_image(path, ignore_small_images=True):
         return None
     inputs = processor(images=image, return_tensors="pt", padding=True)[
         "pixel_values"
-    ].to(torch.device(DEVICE))
+    ].to(torch.device(model_config.value.device))
     feature = model.get_image_features(inputs).detach().cpu().numpy()
     return feature
 
@@ -94,7 +93,7 @@ def process_images(paths: list[str], ignore_small_images=True):
         images.append(image)
     inputs = processor(images=images, return_tensors="pt", padding=True)[
         "pixel_values"
-    ].to(torch.device(DEVICE))
+    ].to(torch.device(model_config.value.device))
     features = model.get_image_features(inputs).detach().cpu().numpy().reshape(len(features), -1)
     return new_paths, features
 
@@ -109,7 +108,7 @@ def get_frames(video: cv2.VideoCapture):
     logger.debug(f"fps: {frame_rate} total: {total_frames}")
     ids, frames = [], []
     for current_frame in trange(
-        0, total_frames, scan_config.get('frameInterval') * frame_rate, desc="当前进度", unit="frame"
+        0, total_frames, scan_config.value.frameInterval * frame_rate, desc="当前进度", unit="frame"
     ):
         # 在 FRAME_INTERVAL 为 2（默认值），frame_rate 为 24
         # 即 FRAME_INTERVAL * frame_rate == 48 时测试
@@ -121,11 +120,11 @@ def get_frames(video: cv2.VideoCapture):
             break
         ids.append(current_frame // frame_rate)
         frames.append(frame)
-        if  len(frames) == scan_config.get('scanProcessBatchSize'):
+        if  len(frames) == scan_config.value.scanProcessBatchSize:
             yield ids, frames
             ids = []
             frames = []
-        for _ in range(scan_config.get('frameInterval') * frame_rate - 1):
+        for _ in range(scan_config.value.frameInterval * frame_rate - 1):
             video.grab()  # 跳帧
     yield ids, frames
 
@@ -143,7 +142,7 @@ def process_video(path):
         for ids, frames in get_frames(video):
             inputs = processor(images=frames, return_tensors="pt", padding=True)[
                 "pixel_values"
-            ].to(torch.device(DEVICE))
+            ].to(torch.device(model_config.value.device))
             features = model.get_image_features(inputs).detach().cpu().numpy()
             if features is None:
                 logger.warning("features is None")
@@ -163,15 +162,15 @@ def process_text(input_text):
     """
     if not input_text:
         return None
-    if MODEL_LANGUAGE == "Chinese":
+    if model_config.value.language == "Chinese":
         text = text_tokenizer(input_text, return_tensors="pt", padding=True)[
             "input_ids"
-        ].to(torch.device(DEVICE_TEXT))
+        ].to(torch.device(model_config.value.textDevice))
         text_features = text_encoder(text).logits.detach().cpu().numpy()
     else:
         text = processor(text=input_text, return_tensors="pt", padding=True)[
             "input_ids"
-        ].to(torch.device(DEVICE))
+        ].to(torch.device(model_config.value.device))
         text_features = model.get_text_features(text).detach().cpu().numpy()
     return text_features
 

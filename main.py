@@ -3,24 +3,21 @@ import logging
 import os
 import shutil
 import threading
-
 from functools import wraps
-from flask import Flask, abort, jsonify, redirect, request, send_file, session, url_for
+
+from flask import (Flask, abort, jsonify, redirect, request, send_file,
+                   session, url_for)
 
 import crud
-from config import *
+from config import (ENABLE_LOGIN, HOST, HOT_RELOAD, LOG_LEVEL, PASSWORD, PORT,
+                    TEMP_PATH, USERNAME, VIDEO_EXTENSION_LENGTH, scan_config,
+                    search_config)
 from database import SessionLocal
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
-from search import (
-    clean_cache,
-    search_image_by_image,
-    search_image_by_text,
-    search_image_file,
-    search_video_by_image,
-    search_video_by_text,
-    search_video_file,
-)
+from search import (clean_cache, search_image_by_image, search_image_by_text,
+                    search_image_file, search_video_by_image,
+                    search_video_by_text, search_video_file)
 from utils import crop_video, get_hash
 
 logging.basicConfig(
@@ -65,7 +62,7 @@ def init():
     os.makedirs('./var/main-instance/', exist_ok=True)
     scanner.init()
     optimize_db()  # 数据库优化（临时功能）
-    if scan_config.get('autoScan'):
+    if scan_config.value.autoScan:
         # FIXME：运行时开启自动扫描
         auto_scan_thread = threading.Thread(target=scanner.auto_scan, args=())
         auto_scan_thread.start()
@@ -182,22 +179,22 @@ def api_match():
     if search_type == 0:  # 文字搜图
         sorted_list = search_image_by_text(
             data["positive"], data["negative"], positive_threshold, negative_threshold
-        )[:MAX_RESULT_NUM]
+        )[:search_config.value.maxResultNum]
     elif search_type == 1:  # 以图搜图
         if not upload_file_path:
             abort(400)
         sorted_list = search_image_by_image(upload_file_path, image_threshold)[
-            :MAX_RESULT_NUM
+            :search_config.value.maxResultNum
         ]
     elif search_type == 2:  # 文字搜视频
         sorted_list = search_video_by_text(
             data["positive"], data["negative"], positive_threshold, negative_threshold
-        )[:MAX_RESULT_NUM]
+        )[:search_config.value.maxResultNum]
     elif search_type == 3:  # 以图搜视频
         if not upload_file_path:
             abort(400)
         sorted_list = search_video_by_image(upload_file_path, image_threshold)[
-            :MAX_RESULT_NUM
+            :search_config.value.maxResultNum
         ]
     elif search_type == 4:  # 图文相似度匹配
         if not upload_file_path:
@@ -210,9 +207,9 @@ def api_match():
         )
         return jsonify({"score": f"{score:.2f}"})
     elif search_type == 5:  # 以图搜图(图片是数据库中的)
-        sorted_list = search_image_by_image(img_id, image_threshold)[:MAX_RESULT_NUM]
+        sorted_list = search_image_by_image(img_id, image_threshold)[:search_config.value.maxResultNum]
     elif search_type == 6:  # 以图搜视频(图片是数据库中的)
-        sorted_list = search_video_by_image(img_id, image_threshold)[:MAX_RESULT_NUM]
+        sorted_list = search_video_by_image(img_id, image_threshold)[:search_config.value.maxResultNum]
     elif search_type == 7:  # 路径搜图
         results = search_image_file(path)[:top_n]
         return jsonify(results)

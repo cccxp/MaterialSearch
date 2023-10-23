@@ -7,7 +7,7 @@ from functools import lru_cache
 import numpy as np
 
 import crud
-from config import *
+from config import search_config
 from database import SessionLocal
 from process_assets import match_batch, process_image, process_text
 from utils import softmax
@@ -30,9 +30,9 @@ def clean_cache():
 
 def search_image_by_feature(
     positive_feature,
-    negative_feature=None,
-    positive_threshold=POSITIVE_THRESHOLD,
-    negative_threshold=NEGATIVE_THRESHOLD,
+    negative_feature,
+    positive_threshold,
+    negative_threshold,
 ):
     """
     通过特征搜索图片
@@ -79,12 +79,12 @@ def search_image_by_feature(
     return return_list
 
 
-@lru_cache(maxsize=CACHE_SIZE)
+@lru_cache(maxsize=search_config.value.cacheSize)
 def search_image_by_text(
-    positive_prompt="",
-    negative_prompt="",
-    positive_threshold=POSITIVE_THRESHOLD,
-    negative_threshold=NEGATIVE_THRESHOLD,
+    positive_prompt,
+    negative_prompt,
+    positive_threshold,
+    negative_threshold,
 ):
     """
     使用文字搜图片
@@ -101,8 +101,8 @@ def search_image_by_text(
     )
 
 
-@lru_cache(maxsize=CACHE_SIZE)
-def search_image_by_image(img_id_or_path, threshold=IMAGE_THRESHOLD):
+@lru_cache(maxsize=search_config.value.cacheSize)
+def search_image_by_image(img_id_or_path, threshold):
     """
     使用图片搜图片
     :param img_id_or_path: int/string, 图片ID 或 图片路径
@@ -120,7 +120,7 @@ def search_image_by_image(img_id_or_path, threshold=IMAGE_THRESHOLD):
     except ValueError:
         img_path = img_id_or_path
         features = process_image(img_path)
-    return search_image_by_feature(features, None, threshold)
+    return search_image_by_feature(features, None, threshold, 0)
 
 
 def get_index_pairs(scores):
@@ -164,9 +164,9 @@ def get_video_range(start_index, end_index, scores, frame_times):
 
 def search_video_by_feature(
     positive_feature,
-    negative_feature=None,
-    positive_threshold=POSITIVE_THRESHOLD,
-    negative_threshold=NEGATIVE_THRESHOLD,
+    negative_feature,
+    positive_threshold,
+    negative_threshold,
 ):
     """
     通过特征搜索视频
@@ -221,12 +221,12 @@ def search_video_by_feature(
     return return_list
 
 
-@lru_cache(maxsize=CACHE_SIZE)
+@lru_cache(maxsize=search_config.value.cacheSize)
 def search_video_by_text(
-    positive_prompt="",
-    negative_prompt="",
-    positive_threshold=POSITIVE_THRESHOLD,
-    negative_threshold=NEGATIVE_THRESHOLD,
+    positive_prompt,
+    negative_prompt,
+    positive_threshold,
+    negative_threshold
 ):
     """
     使用文字搜视频
@@ -243,8 +243,8 @@ def search_video_by_text(
     )
 
 
-@lru_cache(maxsize=CACHE_SIZE)
-def search_video_by_image(img_id_or_path, threshold=IMAGE_THRESHOLD):
+@lru_cache(maxsize=search_config.value.cacheSize)
+def search_video_by_image(img_id_or_path, threshold):
     """
     使用图片搜视频
     :param img_id_or_path: int/string, 图片ID 或 图片路径
@@ -262,10 +262,10 @@ def search_video_by_image(img_id_or_path, threshold=IMAGE_THRESHOLD):
     except ValueError:
         img_path = img_id_or_path
         features = process_image(img_path)
-    return search_video_by_feature(features, None, threshold)
+    return search_video_by_feature(features, None, threshold, 0)
 
 
-@lru_cache(maxsize=CACHE_SIZE)
+@lru_cache(maxsize=search_config.value.cacheSize)
 def search_image_file(path: str):
     """
     通过路径搜索图片
@@ -285,7 +285,7 @@ def search_image_file(path: str):
         return file_list
 
 
-@lru_cache(maxsize=CACHE_SIZE)
+@lru_cache(maxsize=search_config.value.cacheSize)
 def search_video_file(path: str):
     """
     通过路径搜索视频
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     positive_prompt = args.positive_prompt
     if args.search_type == 'image':
-        results = search_image_by_text(positive_prompt)
+        results = search_image_by_text(positive_prompt, '', 10, 0)
         print(positive_prompt)
         print(f'results count: {len(results)}')
         print('-' * 30)
@@ -323,7 +323,7 @@ if __name__ == '__main__':
             print(f'score: {item["score"]:.3f}')
             print('-' * 30)
     elif args.search_type == 'video':
-        results = search_video_by_text(positive_prompt)
+        results = search_video_by_text(positive_prompt, '', 10, 0)
         print(positive_prompt)
         print(f'results count: {len(results)}')
         print('-' * 30)
