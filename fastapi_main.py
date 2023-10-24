@@ -17,10 +17,13 @@ import crud
 from config import (ALLOW_ORIGINS, HOST, HOT_RELOAD, LOG_LEVEL, PORT,
                     TEMP_PATH, VIDEO_EXTENSION_LENGTH, scan_config)
 from database import SessionLocal
-from fastapi_schemas import (MatchRequest, MatchTextAndImageResponse,
-                             ScanStartResponse, ScanStatusResponse,
-                             SearchByPathResponse, SearchImageResponse,
-                             SearchVideoResponse)
+from fastapi_schemas import (MatchTextAndImageRequest,
+                             MatchTextAndImageResponse, ScanStartResponse,
+                             ScanStatusResponse,
+                             SearchByImageInDatabaseRequest,
+                             SearchByImageUploadRequest, SearchByPathRequest,
+                             SearchByPathResponse, SearchByTextRequest,
+                             SearchImageResponse, SearchVideoResponse)
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
 from search import (clean_cache, search_image_by_image, search_image_by_text,
@@ -77,13 +80,14 @@ async def lifespan(app: FastAPI):
     # yield 后的部分为此前 shutdown 事件
     # 在这里编写清理代码
 
+
 middleware = [
     Middleware(
-    CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+        CORSMiddleware,
+        allow_origins=ALLOW_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 ]
 app = FastAPI(lifespan=lifespan, middleware=middleware)
@@ -130,13 +134,23 @@ def api_clean_cache():
         list[SearchByPathResponse],
     ],
 )
-def api_match(r: MatchRequest):
+def api_match(
+    r: Union[
+        SearchByTextRequest,
+        SearchByImageInDatabaseRequest,
+        SearchByImageUploadRequest,
+        SearchByPathRequest,
+        MatchTextAndImageRequest,
+    ]
+):
     """
     匹配文字对应的素材
     """
-    # FIXME: upload_file_path 需要前端支持
-    upload_file_hash = r.upload_file_hash
-    upload_file_path = f"{TEMP_PATH}/uploads/{upload_file_hash}"
+    try:
+        upload_file_hash = r.upload_file_hash
+        upload_file_path = f"{TEMP_PATH}/uploads/{upload_file_hash}"
+    except AttributeError:
+        pass 
     logger.debug(r)
     # 进行匹配
     match r.search_type:  # 文字搜图
@@ -201,7 +215,9 @@ def api_get_image(image_id: Annotated[int, Path(title="图片ID")]):
     with SessionLocal() as session:
         path = crud.get_image_path_by_id(session, image_id)
         logger.debug(path)
-    return FileResponse(path)
+        if not path:
+            return Response(b"", status.HTTP_404_NOT_FOUND)
+        return FileResponse(path)
 
 
 @router.get("/get_video/{video_path}")
@@ -251,7 +267,7 @@ def api_download_video_clip(video_path: str, start_time: int, end_time: int):
 async def api_upload(file: UploadFile):
     """
     上传文件。计算hash, 保存为对应文件名
-    FIXME: 由于无状态的设计，这里无法兼容原 API 
+    FIXME: 由于无状态的设计，这里无法兼容原 API
     FIXME: 同理，登录操作也无法兼容原 API，需要新的设计
     """
     logger.debug(file)
@@ -260,14 +276,13 @@ async def api_upload(file: UploadFile):
     upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
     with open(upload_file_path, "wb") as f:
         f.write(await file.read())
-    return {
-        'filehash': filehash
-    }  # 返回文件哈希值，用于后续搜索时传入
+    return {"filehash": filehash}  # 返回文件哈希值，用于后续搜索时传入
 
 
 app.include_router(router)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run('fastapi_main:app', host=HOST, port=PORT, reload=HOT_RELOAD)
+
+    uvicorn.run("fastapi_main:app", host=HOST, port=PORT, reload=HOT_RELOAD)
