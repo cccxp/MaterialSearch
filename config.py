@@ -6,8 +6,6 @@ import os
 from dotenv import load_dotenv
 from config_model import * 
 
-# 加载.env文件中的环境变量
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 
@@ -31,12 +29,14 @@ class BaseConfig(metaclass=abc.ABCMeta):
     
     def __init__(self, config_model_class: BaseConfigModel) -> None:
         self.config_model_class = config_model_class
-        self.value = config_model_class()
         os.makedirs('./config', exist_ok=True)
         if os.path.exists(self.config_path):
             # 读取配置文件
             self.load_from_file()
         else:
+            print(self.config_path, 'load from env')
+            # 加载.env文件中的环境变量
+            load_dotenv()
             self.load_from_env()
             # 初次 dump 默认配置到文件
             self.save_to_file()
