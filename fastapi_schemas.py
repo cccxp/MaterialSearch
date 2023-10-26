@@ -59,6 +59,7 @@ class MatchTextAndImageRequest(BaseMatchRequest):
 
 
 class SearchImageResponse(ResponseBase):
+    type: str = Field('image', description='搜索结果类型')
     url: str = Field(description="图片URL")
     path: str = Field(description="图片路径")
     score: float = Field(description="匹配得分")
@@ -66,12 +67,13 @@ class SearchImageResponse(ResponseBase):
 
 
 class SearchVideoResponse(ResponseBase):
+    type: str = Field('video', description='搜索结果类型')
+    start_time: str = Field(description="视频片段开始时间")
+    end_time: str = Field(description="视频片段结束时间")
     url: str = Field(description="视频URL")
     path: str = Field(description="视频路径")
     score: float = Field(description="匹配得分")
     softmax_score: float = Field(description="softmax分数")
-    start_time: int = Field(description="视频片段开始时间")
-    end_time: int = Field(description="视频片段结束时间")
 
 
 class SearchByPathResponse(ResponseBase):

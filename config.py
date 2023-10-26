@@ -8,7 +8,6 @@ from config_model import *
 
 logger = logging.getLogger(__name__)
 
-
 class BaseConfig(metaclass=abc.ABCMeta):
     @property
     @abc.abstractmethod
@@ -122,6 +121,8 @@ class SearchConfig(BaseConfig):
             maxResultNum = int(os.getenv('MAX_RESULT_NUM', '150')),
         )
     
+
+load_dotenv()
 
 scan_config = ScanConfig()
 model_config = ModelConfig()

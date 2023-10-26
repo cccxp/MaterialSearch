@@ -1,16 +1,16 @@
 import base64
 import logging
 import time
-import tqdm
 from functools import lru_cache
 
 import numpy as np
+import tqdm
 
 import crud
 from config import search_config
 from database import SessionLocal
 from process_assets import match_batch, process_image, process_text
-from utils import softmax
+from utils import format_seconds, softmax
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +208,8 @@ def search_video_by_feature(
             + "#t=%.1f,%.1f" % (start_time, end_time),
             "path": path,
             "score": float(score.max()),  # XXX: 使用 max 为了避免强转导致的 Warning
-            "start_time": start_time,
-            "end_time": end_time,
+            "start_time": format_seconds(start_time),
+            "end_time": format_seconds(end_time),
             "softmax_score": float(softmax_score.max()),  # 同上
         }
         for (path, score, start_time, end_time), softmax_score in zip(
@@ -307,6 +307,7 @@ def search_video_file(path: str):
 
 if __name__ == '__main__':
     import argparse
+
     from utils import format_seconds
     parser = argparse.ArgumentParser(description='Search local photos and videos through natural language.')
     parser.add_argument('search_type', metavar='<type>', choices=['image', 'video'], help='search type (image or video).')

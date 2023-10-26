@@ -4,13 +4,15 @@ import logging
 import platform
 import signal
 import subprocess
-from fastapi import UploadFile
 
 import numpy as np
+from fastapi import UploadFile
 
 from config import LOG_LEVEL
 
-logging.basicConfig(level=LOG_LEVEL, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+logging.basicConfig(
+    level=LOG_LEVEL, format="%(asctime)s %(name)s %(levelname)s %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +72,7 @@ def format_seconds(seconds):
     """
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}".lstrip('00:')
 
 
 def crop_video(input_file, output_file, start_time, end_time):
@@ -82,17 +84,22 @@ def crop_video(input_file, output_file, start_time, end_time):
     :param end_time: int, 结束时间，单位为秒
     :return: None
     """
-    cmd = 'ffmpeg'
-    if platform.system() == 'Windows':
+    cmd = "ffmpeg"
+    if platform.system() == "Windows":
         cmd += ".exe"
     command = [
         cmd,
-        '-i', input_file,
-        '-ss', format_seconds(start_time),
-        '-to', format_seconds(end_time),
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-        output_file
+        "-i",
+        input_file,
+        "-ss",
+        format_seconds(start_time),
+        "-to",
+        format_seconds(end_time),
+        "-c:v",
+        "copy",
+        "-c:a",
+        "copy",
+        output_file,
     ]
     subprocess.run(command)
 
@@ -105,14 +112,15 @@ class DelayedKeyboardInterrupt:
     https://stackoverflow.com/questions/842557/how-to-prevent-a-block-of-code-from-being-interrupted-by-keyboardinterrupt-in-py
     ```
     """
+
     def __enter__(self):
         self.signal_received = False
         self.old_handler = signal.signal(signal.SIGINT, self.handler)
 
     def handler(self, sig, frame):
         self.signal_received = (sig, frame)
-        logging.info('SIGINT received. Delaying KeyboardInterrupt.')
-    
+        logging.info("SIGINT received. Delaying KeyboardInterrupt.")
+
     def __exit__(self, type, value, traceback):
         signal.signal(signal.SIGINT, self.old_handler)
         if self.signal_received:

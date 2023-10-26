@@ -128,10 +128,10 @@ def api_clean_cache():
 @router.post(
     "/match",
     response_model=Union[
-        list[SearchImageResponse],
         list[SearchVideoResponse],
-        list[MatchTextAndImageResponse],
+        list[SearchImageResponse],
         list[SearchByPathResponse],
+        list[MatchTextAndImageResponse],
     ],
 )
 def api_match(
@@ -284,5 +284,4 @@ app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("fastapi_main:app", host=HOST, port=PORT, reload=HOT_RELOAD)
