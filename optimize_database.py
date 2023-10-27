@@ -3,9 +3,19 @@ import pickle
 import sqlite3
 
 import config
+import crud
+from database import SessionLocal
 
 NEWEST_VERSION = 2
 logger = logging.getLogger(__name__)
+
+
+def is_optimized(features):
+    try:
+        pickle.loads(features)
+        return False
+    except Exception as e:
+        return True
 
 
 def update_database(version: int):
@@ -16,13 +26,6 @@ def update_database(version: int):
     logger.info(f"正在升级为: {version}")
     match version:
         case 2:
-            def is_optimized(features):
-                try:
-                    pickle.loads(features)
-                    return False
-                except Exception as e:
-                    return True
-
             # 首先尝试优化数据库
             db = sqlite3.connect(config.SQLALCHEMY_DATABASE_URL)
             cursor = db.cursor()
@@ -66,16 +69,26 @@ def update_database(version: int):
             logger.info("version 表创建完成")
         case 3:
             # TODO: 向数据库添加一些元数据列，以便更详细的筛选？
-            ... 
+            ...
     logger.info(f"成功升级至：{version}")
+
 
 def optimize_database():
     """
     优化最新版的数据库
+    更新数据库的feature列，从pickle保存改成numpy保存
+    本功能为临时功能，几个月后会移除（默认大家后面都已经全部迁移好了）
     TODO: 删除数据库中的无效项目
     """
     logger.info("开始优化数据库")
-    ...
+    with SessionLocal() as session:
+        if crud.check_if_optimized_database(session):
+            return
+        logger.info("开始优化数据库，切勿中断，否则要删库重扫！如果你文件数量多，可能比较久。")
+        logger.info("参考速度：5万图片+200个视频（100万视频帧），在J3455上大约需要15分钟。")
+        crud.optimize_image(session)
+        crud.optimize_video(session)
+        logger.info(f"数据库优化完成")
     logger.info("优化完成")
 
 

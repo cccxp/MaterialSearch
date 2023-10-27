@@ -24,6 +24,7 @@ from fastapi_schemas import (MatchTextAndImageRequest,
                              SearchByImageUploadRequest, SearchByPathRequest,
                              SearchByPathResponse, SearchByTextRequest,
                              SearchImageResponse, SearchVideoResponse)
+from optimize_database import optimize_database
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
 from search import (clean_cache, search_image_by_image, search_image_by_text,
@@ -36,22 +37,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 scanner = Scanner()
-
-
-def optimize_db():
-    """
-    更新数据库的feature列，从pickle保存改成numpy保存
-    本功能为临时功能，几个月后会移除（默认大家后面都已经全部迁移好了）
-    :return: None
-    """
-    with SessionLocal() as session:
-        if crud.check_if_optimized_database(session):
-            return
-        logger.info("开始优化数据库，切勿中断，否则要删库重扫！如果你文件数量多，可能比较久。")
-        logger.info("参考速度：5万图片+200个视频（100万视频帧），在J3455上大约需要15分钟。")
-        crud.optimize_image(session)
-        crud.optimize_video(session)
-        logger.info(f"数据库优化完成")
 
 
 @asynccontextmanager
@@ -72,7 +57,7 @@ async def lifespan(app: FastAPI):
     # 兼容曾经的 Flask-SQLAlchemy 数据库默认路径
     os.makedirs("./var/main-instance/", exist_ok=True)
     scanner.init()
-    optimize_db()  # 数据库优化（临时功能）
+    optimize_database()  # 数据库优化（临时功能）
     if scan_config.value.autoScan:
         auto_scan_thread = threading.Thread(target=scanner.auto_scan, args=())
         auto_scan_thread.start()
@@ -148,7 +133,7 @@ def api_match(
     """
     try:
         upload_file_hash = r.upload_file_hash
-        upload_file_path = f"{TEMP_PATH}/uploads/{upload_file_hash}"
+        upload_file_path = f"{TEMP_PATH}/upload/{upload_file_hash}"
     except AttributeError:
         pass 
     logger.debug(r)
@@ -162,6 +147,7 @@ def api_match(
         case 1:  # 以图搜图
             if not upload_file_path:
                 return Response(status_code=status.HTTP_400_BAD_REQUEST)
+            print(upload_file_path)
             results = search_image_by_image(upload_file_path, r.image_threshold)[
                 : r.top_n
             ]
@@ -272,9 +258,10 @@ async def api_upload(file: UploadFile):
     """
     logger.debug(file)
     # 保存文件
-    filehash = get_hash(file)
+    filehash = get_hash(await file.read())
     upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
     with open(upload_file_path, "wb") as f:
+        await file.seek(0)
         f.write(await file.read())
     return {"filehash": filehash}  # 返回文件哈希值，用于后续搜索时传入
 

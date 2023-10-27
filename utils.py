@@ -28,10 +28,7 @@ def get_hash(bytesio):
         return _hash.hexdigest()
     try:
         while True:
-            if type(bytesio) is UploadFile:
-                data = asyncio.run(bytesio.read(1048576))
-            else:
-                data = bytesio.read(1048576)
+            data = bytesio.read(1048576)
             if not data:
                 break
             _hash.update(data)
