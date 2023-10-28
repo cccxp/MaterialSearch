@@ -77,6 +77,7 @@ class SearchVideoResponse(ResponseBase):
 
 
 class SearchByPathResponse(ResponseBase):
+    type: str = Field(description='搜索结果类型')
     url: str = Field(description="文件URL")
     path: str = Field(description="文件路径")
 

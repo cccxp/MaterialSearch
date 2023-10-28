@@ -116,7 +116,7 @@ def api_clean_cache():
         list[SearchVideoResponse],
         list[SearchImageResponse],
         list[SearchByPathResponse],
-        list[MatchTextAndImageResponse],
+        MatchTextAndImageResponse,
     ],
 )
 def api_match(
@@ -171,7 +171,6 @@ def api_match(
                 score=match_text_and_image(
                     process_text(r.text), process_image(upload_file_path)
                 )
-                * 100
             )
         case 5:  # 以图搜图(图片是数据库中的)
             results = search_image_by_image(r.img_id, r.image_threshold)[: r.top_n]

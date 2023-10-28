@@ -277,6 +277,7 @@ def search_image_file(path: str):
         id_paths = crud.search_image_by_path(session, path)
         file_list = [
             {
+                "type": "image",
                 "url": "/api/get_image/%d" % id,
                 "path": path,
             }
@@ -296,6 +297,7 @@ def search_video_file(path: str):
         paths = crud.search_video_by_path(session, path)
         file_list = [
             {
+                "type": "video",
                 "url": "/api/get_video/%s"
                 % base64.urlsafe_b64encode(path.encode()).decode(),
                 "path": path,
