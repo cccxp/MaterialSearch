@@ -6,30 +6,58 @@ import threading
 from contextlib import asynccontextmanager
 from typing import Annotated, Union
 
-from fastapi import (APIRouter, BackgroundTasks, FastAPI, Path, UploadFile,
-                     status)
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    FastAPI,
+    Path,
+    UploadFile,
+    WebSocket,
+    status,
+)
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 import crud
-from config import (ALLOW_ORIGINS, HOST, HOT_RELOAD, LOG_LEVEL, PORT,
-                    TEMP_PATH, VIDEO_EXTENSION_LENGTH, scan_config)
+from benchmark import Benchmark
+from config import (
+    ALLOW_ORIGINS,
+    HOST,
+    HOT_RELOAD,
+    LOG_LEVEL,
+    PORT,
+    TEMP_PATH,
+    VIDEO_EXTENSION_LENGTH,
+    scan_config,
+)
 from database import SessionLocal
-from fastapi_schemas import (MatchTextAndImageRequest,
-                             MatchTextAndImageResponse, ScanStartResponse,
-                             ScanStatusResponse,
-                             SearchByImageInDatabaseRequest,
-                             SearchByImageUploadRequest, SearchByPathRequest,
-                             SearchByPathResponse, SearchByTextRequest,
-                             SearchImageResponse, SearchVideoResponse)
+from fastapi_schemas import (
+    MatchTextAndImageRequest,
+    MatchTextAndImageResponse,
+    ScanStartResponse,
+    ScanStatusResponse,
+    SearchByImageInDatabaseRequest,
+    SearchByImageUploadRequest,
+    SearchByPathRequest,
+    SearchByPathResponse,
+    SearchByTextRequest,
+    SearchImageResponse,
+    SearchVideoResponse,
+)
 from optimize_database import optimize_database
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
-from search import (clean_cache, search_image_by_image, search_image_by_text,
-                    search_image_file, search_video_by_image,
-                    search_video_by_text, search_video_file)
+from search import (
+    clean_cache,
+    search_image_by_image,
+    search_image_by_text,
+    search_image_file,
+    search_video_by_image,
+    search_video_by_text,
+    search_video_file,
+)
 from utils import crop_video, get_hash
 
 logging.basicConfig(
@@ -78,6 +106,7 @@ middleware = [
 app = FastAPI(lifespan=lifespan, middleware=middleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 router = APIRouter(prefix="/api")
+wsrouter = APIRouter(prefix="/ws")
 
 
 @app.get("/", name="Home Page")
@@ -135,7 +164,7 @@ def api_match(
         upload_file_hash = r.upload_file_hash
         upload_file_path = f"{TEMP_PATH}/upload/{upload_file_hash}"
     except AttributeError:
-        pass 
+        pass
     logger.debug(r)
     # 进行匹配
     match r.search_type:  # 文字搜图
@@ -265,9 +294,24 @@ async def api_upload(file: UploadFile):
     return {"filehash": filehash}  # 返回文件哈希值，用于后续搜索时传入
 
 
+@wsrouter.websocket("/benchmark")
+async def benckmark(websocket: WebSocket):
+    await websocket.accept()
+    msg = await websocket.receive()
+    sign = msg.get('text', '')
+    if sign != 'start':
+        await websocket.close()
+        return
+    bm = Benchmark(websocket)
+    await bm.run()
+    await websocket.close()
+
+
+router.include_router(wsrouter)
 app.include_router(router)
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("fastapi_main:app", host=HOST, port=PORT, reload=HOT_RELOAD)
