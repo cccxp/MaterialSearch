@@ -4,7 +4,7 @@ import os
 import shutil
 import threading
 from contextlib import asynccontextmanager
-from typing import Annotated, Union
+from typing import Annotated, Any, Literal, Union
 
 from fastapi import (
     APIRouter,
@@ -30,10 +30,14 @@ from config import (
     PORT,
     TEMP_PATH,
     VIDEO_EXTENSION_LENGTH,
+    model_config,
     scan_config,
+    search_config,
 )
+from config_model import ModelConfigModel, ScanConfigModel, SearchConfigModel
 from database import SessionLocal
 from fastapi_schemas import (
+    GetConfigResponse,
     MatchTextAndImageRequest,
     MatchTextAndImageResponse,
     ScanStartResponse,
@@ -45,6 +49,7 @@ from fastapi_schemas import (
     SearchByTextRequest,
     SearchImageResponse,
     SearchVideoResponse,
+    SetConfigRequest,
 )
 from optimize_database import optimize_database
 from process_assets import match_text_and_image, process_image, process_text
@@ -294,12 +299,45 @@ async def api_upload(file: UploadFile):
     return {"filehash": filehash}  # 返回文件哈希值，用于后续搜索时传入
 
 
+@router.get(
+    "/get_config",
+    response_model=GetConfigResponse,
+)
+async def get_config():
+    """
+    获取当前配置信息
+    """
+    return GetConfigResponse(
+        scan=scan_config.value,
+        model=model_config.value,
+        search=search_config.value
+    )
+
+
+@router.post(
+    "/set_config",
+)
+async def set_config(r: SetConfigRequest):
+    """
+    TODO: 设置配置项
+    """
+    match r.type:
+        case "scan":
+            ...
+        case "model":
+            ...
+        case "search":
+            ...
+        case _:
+            return Response("", status.HTTP_404_NOT_FOUND)
+
+
 @wsrouter.websocket("/benchmark")
 async def benckmark(websocket: WebSocket):
     await websocket.accept()
     msg = await websocket.receive()
-    sign = msg.get('text', '')
-    if sign != 'start':
+    sign = msg.get("text", "")
+    if sign != "start":
         await websocket.close()
         return
     bm = Benchmark(websocket)

@@ -1,4 +1,7 @@
+from typing import Any, Literal
 from pydantic import BaseModel, Field
+
+from config_model import ScanConfigModel, ModelConfigModel, SearchConfigModel
 
 
 class RequestBase(BaseModel):
@@ -59,7 +62,7 @@ class MatchTextAndImageRequest(BaseMatchRequest):
 
 
 class SearchImageResponse(ResponseBase):
-    type: str = Field('image', description='搜索结果类型')
+    type: str = Field("image", description="搜索结果类型")
     url: str = Field(description="图片URL")
     path: str = Field(description="图片路径")
     score: float = Field(description="匹配得分")
@@ -67,7 +70,7 @@ class SearchImageResponse(ResponseBase):
 
 
 class SearchVideoResponse(ResponseBase):
-    type: str = Field('video', description='搜索结果类型')
+    type: str = Field("video", description="搜索结果类型")
     start_time: str = Field(description="视频片段开始时间")
     end_time: str = Field(description="视频片段结束时间")
     url: str = Field(description="视频URL")
@@ -77,10 +80,22 @@ class SearchVideoResponse(ResponseBase):
 
 
 class SearchByPathResponse(ResponseBase):
-    type: str = Field(description='搜索结果类型')
+    type: str = Field(description="搜索结果类型")
     url: str = Field(description="文件URL")
     path: str = Field(description="文件路径")
 
 
 class MatchTextAndImageResponse(ResponseBase):
     score: float = Field(description="匹配图文相似度得分")
+
+
+class GetConfigResponse(ResponseBase):
+    scan: ScanConfigModel = Field(description="扫描相关配置")
+    search: SearchConfigModel = Field(description="搜索相关配置")
+    model: ModelConfigModel = Field(description="模型相关配置")
+
+
+class SetConfigRequest(RequestBase):
+    type: Literal["scan", "search", "model"] = Field(description="配置类型")
+    key: str = Field(description="配置项")
+    value: Any = Field(description="配置值")
