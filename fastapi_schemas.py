@@ -35,6 +35,7 @@ class BaseMatchRequest(RequestBase):
 
 
 class SearchByTextRequest(BaseMatchRequest):
+    search_type: Literal[0, 2] = Field(description="搜索种类")
     positive: str = Field(description="正向提示词")
     negative: str = Field(description="负向提示词")
     positive_threshold: float = Field(description="正向提示词阈值")
@@ -43,20 +44,24 @@ class SearchByTextRequest(BaseMatchRequest):
 
 
 class SearchByImageInDatabaseRequest(BaseMatchRequest):
+    search_type: Literal[5, 6] = Field(description="搜索种类")
     img_id: int = Field(description="图像ID")
     image_threshold: float = Field(description="以图搜索时的图像阈值")
 
 
 class SearchByImageUploadRequest(BaseMatchRequest):
+    search_type: Literal[1, 3] = Field(description="搜索种类")
     image_threshold: float = Field(description="以图搜索时的图像阈值")
     upload_file_hash: str = Field(description="上传文件的哈希值（以图搜时使用）")
 
 
 class SearchByPathRequest(BaseMatchRequest):
+    search_type: Literal[7, 8] = Field(description="搜索种类")
     path: str = Field(description="按路径搜索的路径")
 
 
 class MatchTextAndImageRequest(BaseMatchRequest):
+    search_type: Literal[4] = Field(description="搜索种类")
     text: str = Field(description="匹配图文相似度时的文本")
     upload_file_hash: str = Field(description="上传文件的哈希值（以图搜时使用）")
 
