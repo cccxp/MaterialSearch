@@ -1,12 +1,12 @@
 import datetime
 import logging
+import os
 import pickle
 import time
 from pathlib import Path
-import os
 
 import crud
-from config import scan_config, TEMP_PATH, ENABLE_LOGIN
+from config import ENABLE_LOGIN, TEMP_PATH, scan_config
 from database import SessionLocal
 from models import create_tables
 from process_assets import process_image, process_video
@@ -27,7 +27,7 @@ class Scanner:
         self.total_videos = 0
         self.total_video_frames = 0
         self.scanned_files = 0
-        self.current_file = ''
+        self.current_file = ""
         self.is_continue_scan = False
         self.logger = logging.getLogger(__name__)
         self.temp_file = f"{TEMP_PATH}/assets.pickle"
@@ -227,7 +227,7 @@ class Scanner:
         self.is_scanning = False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     scanner = Scanner()
     scanner.init()
     scanner.scan(False)

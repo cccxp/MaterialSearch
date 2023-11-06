@@ -4,7 +4,7 @@ import os
 import shutil
 import threading
 from contextlib import asynccontextmanager
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Union
 
 from fastapi import (
     APIRouter,
@@ -308,9 +308,7 @@ async def get_config():
     获取当前配置信息
     """
     return GetConfigResponse(
-        scan=scan_config.value,
-        model=model_config.value,
-        search=search_config.value
+        scan=scan_config.value, model=model_config.value, search=search_config.value
     )
 
 

@@ -6,7 +6,6 @@ import signal
 import subprocess
 
 import numpy as np
-from fastapi import UploadFile
 
 from config import LOG_LEVEL
 
@@ -69,7 +68,7 @@ def format_seconds(seconds):
     """
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}".lstrip('00:')
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}".lstrip("00:")
 
 
 def crop_video(input_file, output_file, start_time, end_time):

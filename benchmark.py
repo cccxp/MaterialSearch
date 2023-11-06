@@ -32,6 +32,7 @@ class Benchmark:
         input_text = "This is a test sentence."  # 测试文本
 
         await self.send_text(f"你使用的语言为{model_config.value.language}。")
+        # FIXME: websocket 会在这里卡住
         await self.send_text("Loading models...")
         is_chinese = model_config.value.language == "Chinese"
         clip_model = CLIPModel.from_pretrained(model_config.value.name)
