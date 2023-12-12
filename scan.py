@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import crud
-from config import ENABLE_LOGIN, TEMP_PATH, scan_config
+from config import server_config, scan_config
 from database import SessionLocal
 from models import create_tables
 from process_assets import process_image, process_video
@@ -30,7 +30,7 @@ class Scanner:
         self.current_file = ""
         self.is_continue_scan = False
         self.logger = logging.getLogger(__name__)
-        self.temp_file = f"{TEMP_PATH}/assets.pickle"
+        self.temp_file = f"{server_config.value.tempPath}/assets.pickle"
         self.assets = set()
 
         # 自动扫描时间
@@ -79,7 +79,7 @@ class Scanner:
             "progress": progress,
             "current_file": self.current_file,
             "remain_time": int(remain_time),
-            "enable_login": ENABLE_LOGIN,
+            "enable_login": server_config.value.enableLogin,
         }
 
     def save_assets(self):

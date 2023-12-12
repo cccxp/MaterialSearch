@@ -9,9 +9,7 @@ from flask import (Flask, abort, jsonify, redirect, request, send_file,
                    session, url_for)
 
 import crud
-from config import (ENABLE_LOGIN, HOST, HOT_RELOAD, LOG_LEVEL, PASSWORD, PORT,
-                    TEMP_PATH, USERNAME, VIDEO_EXTENSION_LENGTH, scan_config,
-                    search_config)
+from config import scan_config, search_config, server_config
 from database import SessionLocal
 from process_assets import match_text_and_image, process_image, process_text
 from scan import Scanner
@@ -21,7 +19,8 @@ from search import (clean_cache, search_image_by_image, search_image_by_text,
 from utils import crop_video, get_hash
 
 logging.basicConfig(
-    level=LOG_LEVEL, format="%(asctime)s %(name)s %(levelname)s %(message)s"
+    level=server_config.value.logLevel,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -54,12 +53,12 @@ def init():
     """
     global scanner
     # 删除上传目录中所有文件
-    shutil.rmtree(f'{TEMP_PATH}/upload', ignore_errors=True)
-    os.makedirs(f'{TEMP_PATH}/upload')
-    shutil.rmtree(f'{TEMP_PATH}/video_clips', ignore_errors=True)
-    os.makedirs(f'{TEMP_PATH}/video_clips')
+    shutil.rmtree(f"{server_config.value.tempPath}/upload", ignore_errors=True)
+    os.makedirs(f"{server_config.value.tempPath}/upload")
+    shutil.rmtree(f"{server_config.value.tempPath}/video_clips", ignore_errors=True)
+    os.makedirs(f"{server_config.value.tempPath}/video_clips")
     # 兼容曾经的 Flask-SQLAlchemy 数据库默认路径
-    os.makedirs('./var/main-instance/', exist_ok=True)
+    os.makedirs("./var/main-instance/", exist_ok=True)
     scanner.init()
     optimize_db()  # 数据库优化（临时功能）
     if scan_config.value.autoScan:
@@ -76,7 +75,7 @@ def login_required(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         # 检查登录开关状态
-        if ENABLE_LOGIN:
+        if server_config.value.enableLogin:
             # 如果开关已启用，则进行登录认证检查
             if "username" not in session:
                 # 如果用户未登录，则重定向到登录页面
@@ -108,7 +107,10 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
         # 简单的验证逻辑
-        if username == USERNAME and password == PASSWORD:
+        if (
+            username == server_config.value.username
+            and password == server_config.value.password
+        ):
             # 登录成功，将用户名保存到会话中
             logger.info(f"用户登录成功 {ip_addr}")
             session["username"] = username
@@ -173,28 +175,28 @@ def api_match():
     image_threshold = data["image_threshold"]
     img_id = data["img_id"]
     path = data["path"]
-    upload_file_path = session.get('upload_file_path', '')
+    upload_file_path = session.get("upload_file_path", "")
     logger.debug(data)
     # 进行匹配
     if search_type == 0:  # 文字搜图
         sorted_list = search_image_by_text(
             data["positive"], data["negative"], positive_threshold, negative_threshold
-        )[:search_config.value.maxResultNum]
+        )[: search_config.value.maxResultNum]
     elif search_type == 1:  # 以图搜图
         if not upload_file_path:
             abort(400)
         sorted_list = search_image_by_image(upload_file_path, image_threshold)[
-            :search_config.value.maxResultNum
+            : search_config.value.maxResultNum
         ]
     elif search_type == 2:  # 文字搜视频
         sorted_list = search_video_by_text(
             data["positive"], data["negative"], positive_threshold, negative_threshold
-        )[:search_config.value.maxResultNum]
+        )[: search_config.value.maxResultNum]
     elif search_type == 3:  # 以图搜视频
         if not upload_file_path:
             abort(400)
         sorted_list = search_video_by_image(upload_file_path, image_threshold)[
-            :search_config.value.maxResultNum
+            : search_config.value.maxResultNum
         ]
     elif search_type == 4:  # 图文相似度匹配
         if not upload_file_path:
@@ -207,9 +209,13 @@ def api_match():
         )
         return jsonify({"score": f"{score:.2f}"})
     elif search_type == 5:  # 以图搜图(图片是数据库中的)
-        sorted_list = search_image_by_image(img_id, image_threshold)[:search_config.value.maxResultNum]
+        sorted_list = search_image_by_image(img_id, image_threshold)[
+            : search_config.value.maxResultNum
+        ]
     elif search_type == 6:  # 以图搜视频(图片是数据库中的)
-        sorted_list = search_video_by_image(img_id, image_threshold)[:search_config.value.maxResultNum]
+        sorted_list = search_video_by_image(img_id, image_threshold)[
+            : search_config.value.maxResultNum
+        ]
     elif search_type == 7:  # 路径搜图
         results = search_image_file(path)[:top_n]
         return jsonify(results)
@@ -271,13 +277,16 @@ def api_download_video_clip(video_path, start_time, end_time):
     with SessionLocal() as session:
         if not crud.is_video_exist(session, path):  # 如果路径不在数据库中，则返回404，防止任意文件读取攻击
             abort(404)
-    # 根据VIDEO_EXTENSION_LENGTH调整时长
-    start_time -= VIDEO_EXTENSION_LENGTH
-    end_time += VIDEO_EXTENSION_LENGTH
+    # 根据 videoExtensionLength 调整时长
+    start_time -= server_config.value.videoExtensionLength
+    end_time += server_config.value.videoExtensionLength
     if start_time < 0:
         start_time = 0
-    # 调用ffmpeg截取视频片段
-    output_path = f"{TEMP_PATH}/video_clips/{start_time}_{end_time}_" + os.path.basename(path)
+    # 调用 ffmpeg 截取视频片段
+    output_path = (
+        f"{server_config.value.tempPath}/video_clips/{start_time}_{end_time}_"
+        + os.path.basename(path)
+    )
     if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
         crop_video(path, output_path, start_time, end_time)
     return send_file(output_path)
@@ -292,18 +301,22 @@ def api_upload():
     """
     logger.debug(request.files)
     # 删除旧文件
-    upload_file_path = session.get('upload_file_path', '')
+    upload_file_path = session.get("upload_file_path", "")
     if upload_file_path and os.path.exists(upload_file_path):
         os.remove(upload_file_path)
     # 保存文件
     f = request.files["file"]
     filehash = get_hash(f.stream)
-    upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
+    upload_file_path = f"{server_config.value.tempPath}/upload/{filehash}"
     f.save(upload_file_path)
-    session['upload_file_path'] = upload_file_path
+    session["upload_file_path"] = upload_file_path
     return "file uploaded successfully"
 
 
 if __name__ == "__main__":
     init()
-    app.run(port=PORT, host=HOST, debug=HOT_RELOAD)
+    app.run(
+        host=server_config.value.host,
+        port=server_config.value.port,
+        debug=server_config.value.hotReload,
+    )

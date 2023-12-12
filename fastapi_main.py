@@ -23,18 +23,11 @@ from starlette.middleware.cors import CORSMiddleware
 import crud
 from benchmark import Benchmark
 from config import (
-    ALLOW_ORIGINS,
-    HOST,
-    HOT_RELOAD,
-    LOG_LEVEL,
-    PORT,
-    TEMP_PATH,
-    VIDEO_EXTENSION_LENGTH,
+    server_config,
     model_config,
     scan_config,
     search_config,
 )
-from config_model import ModelConfigModel, ScanConfigModel, SearchConfigModel
 from database import SessionLocal
 from fastapi_schemas import (
     GetConfigResponse,
@@ -66,7 +59,8 @@ from search import (
 from utils import crop_video, get_hash
 
 logging.basicConfig(
-    level=LOG_LEVEL, format="%(asctime)s %(name)s %(levelname)s %(message)s"
+    level=server_config.value.logLevel,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
 scanner = Scanner()
@@ -83,10 +77,10 @@ async def lifespan(app: FastAPI):
     # 在这里编写初始化代码
     global scanner
     # 删除上传目录中所有文件
-    shutil.rmtree(f"{TEMP_PATH}/upload", ignore_errors=True)
-    os.makedirs(f"{TEMP_PATH}/upload")
-    shutil.rmtree(f"{TEMP_PATH}/video_clips", ignore_errors=True)
-    os.makedirs(f"{TEMP_PATH}/video_clips")
+    shutil.rmtree(f"{server_config.value.tempPath}/upload", ignore_errors=True)
+    os.makedirs(f"{server_config.value.tempPath}/upload")
+    shutil.rmtree(f"{server_config.value.tempPath}/video_clips", ignore_errors=True)
+    os.makedirs(f"{server_config.value.tempPath}/video_clips")
     # 兼容曾经的 Flask-SQLAlchemy 数据库默认路径
     os.makedirs("./var/main-instance/", exist_ok=True)
     scanner.init()
@@ -102,7 +96,7 @@ async def lifespan(app: FastAPI):
 middleware = [
     Middleware(
         CORSMiddleware,
-        allow_origins=ALLOW_ORIGINS,
+        allow_origins=server_config.value.allowOrigins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -167,7 +161,7 @@ def api_match(
     """
     try:
         upload_file_hash = r.upload_file_hash
-        upload_file_path = f"{TEMP_PATH}/upload/{upload_file_hash}"
+        upload_file_path = f"{server_config.value.tempPath}/upload/{upload_file_hash}"
     except AttributeError:
         pass
     logger.debug(r)
@@ -269,13 +263,14 @@ def api_download_video_clip(video_path: str, start_time: int, end_time: int):
         if not crud.is_video_exist(session, path):  # 如果路径不在数据库中，则返回404，防止任意文件读取攻击
             return Response(status_code=status.HTTP_404_NOT_FOUND)
     # 根据 VIDEO_EXTENSION_LENGTH 调整时长
-    start_time -= VIDEO_EXTENSION_LENGTH
-    end_time += VIDEO_EXTENSION_LENGTH
+    start_time -= server_config.value.videoExtensionLength
+    end_time += server_config.value.videoExtensionLength
     if start_time < 0:
         start_time = 0
     # 调用ffmpeg截取视频片段
     output_path = (
-        f"{TEMP_PATH}/video_clips/{start_time}_{end_time}_" + os.path.basename(path)
+        f"{server_config.value.tempPath}/video_clips/{start_time}_{end_time}_"
+        + os.path.basename(path)
     )
     if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
         crop_video(path, output_path, start_time, end_time)
@@ -292,7 +287,7 @@ async def api_upload(file: UploadFile):
     logger.debug(file)
     # 保存文件
     filehash = get_hash(await file.read())
-    upload_file_path = f"{TEMP_PATH}/upload/{filehash}"
+    upload_file_path = f"{server_config.value.tempPath}/upload/{filehash}"
     with open(upload_file_path, "wb") as f:
         await file.seek(0)
         f.write(await file.read())
@@ -350,4 +345,9 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("fastapi_main:app", host=HOST, port=PORT, reload=HOT_RELOAD)
+    uvicorn.run(
+        "fastapi_main:app",
+        host=server_config.value.host,
+        port=server_config.value.port,
+        reload=server_config.value.hotReload,
+    )

@@ -7,10 +7,10 @@ import subprocess
 
 import numpy as np
 
-from config import LOG_LEVEL
+from config import server_config
 
 logging.basicConfig(
-    level=LOG_LEVEL, format="%(asctime)s %(name)s %(levelname)s %(message)s"
+    level=server_config.value.logLevel, format="%(asctime)s %(name)s %(levelname)s %(message)s"
 )
 logger = logging.getLogger(__name__)
 
