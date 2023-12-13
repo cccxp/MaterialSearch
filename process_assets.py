@@ -19,17 +19,34 @@ from config import scan_config, model_config, server_config
 from utils import ffmpeg_crop_video
 
 logger = logging.getLogger(__name__)
-logger.info("Loading model...")
-model = CLIPModel.from_pretrained(model_config.value.name).to(torch.device(model_config.value.device))
-processor = CLIPProcessor.from_pretrained(model_config.value.name)
-if model_config.value.language == "Chinese":
+
+
+model = None
+processor = None
+text_tokenizer = None
+text_encoder = None
+
+
+def load_clip_model():
+    # TODO: 修改模型后重载
+    global model, processor
+    logger.info("Loading model...")
+    model = CLIPModel.from_pretrained(model_config.value.name).to(
+        torch.device(model_config.value.device)
+    )
+    processor = CLIPProcessor.from_pretrained(model_config.value.name)
+    logger.info("Model loaded.")
+
+
+def load_text_model():
+    # TODO: 修改语言、模型后重载
+    global text_tokenizer, text_encoder
     text_tokenizer = BertTokenizer.from_pretrained(model_config.value.textModelName)
     text_encoder = (
         BertForSequenceClassification.from_pretrained(model_config.value.textModelName)
         .eval()
         .to(torch.device(model_config.value.textDevice))
     )
-logger.info("Model loaded.")
 
 
 def get_image_data(path: str, ignore_small_images: bool):
@@ -45,15 +62,17 @@ def get_image_data(path: str, ignore_small_images: bool):
             width, height = image.size
             # 避免 Png Bomb 攻击
             # https://github.com/ptrofimov/png-bomb-protection
-            if any((
-                width * height > scan_config.value.imageMaxPixels,
-                width < scan_config.value.imageMinWidth, 
-                height < scan_config.value.imageMinHeight
-            )):
-                return None 
+            if any(
+                (
+                    width * height > scan_config.value.imageMaxPixels,
+                    width < scan_config.value.imageMinWidth,
+                    height < scan_config.value.imageMinHeight,
+                )
+            ):
+                return None
         # processor 中也会这样预处理 Image
         # 在这里提前转为 np.array 避免到时候抛出异常
-        image = image.convert('RGB')
+        image = image.convert("RGB")
         image = np.array(image)
         return image
     except Exception as e:
@@ -95,12 +114,18 @@ def process_images(paths: list[str], ignore_small_images=True):
     inputs = processor(images=images, return_tensors="pt", padding=True)[
         "pixel_values"
     ].to(torch.device(model_config.value.device))
-    features = model.get_image_features(inputs).detach().cpu().numpy().reshape(len(features), -1)
+    features = (
+        model.get_image_features(inputs)
+        .detach()
+        .cpu()
+        .numpy()
+        .reshape(len(features), -1)
+    )
     return new_paths, features
 
 
 def get_frames(video: cv2.VideoCapture):
-    """ 
+    """
     获取视频的帧数据
     :return: (list[int], list[array]) (帧编号列表, 帧像素数据列表) 元组
     """
@@ -109,7 +134,11 @@ def get_frames(video: cv2.VideoCapture):
     logger.debug(f"fps: {frame_rate} total: {total_frames}")
     ids, frames = [], []
     for current_frame in trange(
-        0, total_frames, scan_config.value.frameInterval * frame_rate, desc="当前进度", unit="frame"
+        0,
+        total_frames,
+        scan_config.value.frameInterval * frame_rate,
+        desc="当前进度",
+        unit="frame",
     ):
         # 在 FRAME_INTERVAL 为 2（默认值），frame_rate 为 24
         # 即 FRAME_INTERVAL * frame_rate == 48 时测试
@@ -121,7 +150,7 @@ def get_frames(video: cv2.VideoCapture):
             break
         ids.append(current_frame // frame_rate)
         frames.append(frame)
-        if  len(frames) == scan_config.value.scanProcessBatchSize:
+        if len(frames) == scan_config.value.scanProcessBatchSize:
             yield ids, frames
             ids = []
             frames = []
@@ -149,7 +178,7 @@ def process_video(path):
                 logger.warning("features is None")
                 continue
             for id, feature in zip(ids, features):
-                yield id, feature 
+                yield id, feature
     except Exception as e:
         logger.warning(f"处理视频出错：{path} {repr(e)}")
         return
@@ -164,6 +193,8 @@ def process_text(input_text):
     if not input_text:
         return None
     if model_config.value.language == "Chinese":
+        if text_encoder is None:
+            load_text_model()
         text = text_tokenizer(input_text, return_tensors="pt", padding=True)[
             "input_ids"
         ].to(torch.device(model_config.value.textDevice))
@@ -265,3 +296,8 @@ def crop_video(path: str, start_time: int, end_time: int):
     if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
         ffmpeg_crop_video(path, output_path, start_time, end_time)
     return output_path
+
+
+load_clip_model()
+if model_config.value.language == "Chinese":
+    load_text_model()

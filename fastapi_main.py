@@ -38,8 +38,10 @@ from fastapi_schemas import (
     SearchByTextRequest,
     SearchImageResponse,
     SearchVideoResponse,
-    SetConfigRequest,
     SetConfigResponse,
+    SetModelConfigRequest,
+    SetScanConfigRequest,
+    SetSearchConfigRequest,
 )
 from optimize_database import optimize_database
 from process_assets import crop_video, match_text_and_image, process_image, process_text
@@ -297,9 +299,11 @@ async def get_config():
 @router.post(
     "/set_config",
 )
-async def set_config(r: SetConfigRequest):
+async def set_config(
+    r: SetScanConfigRequest | SetModelConfigRequest | SetSearchConfigRequest,
+):
     """
-    TODO: 设置配置项
+    设置配置项
     """
     try:
         match r.type:

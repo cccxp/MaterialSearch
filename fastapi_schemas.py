@@ -100,12 +100,25 @@ class GetConfigResponse(ResponseBase):
     model: ModelConfigModel = Field(description="模型相关配置")
 
 
-class SetConfigRequest(RequestBase):
-    type: Literal["scan", "search", "model"] = Field(description="配置类型")
-    value: dict[
-        str, Union[ScanConfigModel, SearchConfigModel, ModelConfigModel]
-    ] = Field(description="配置字典")
+class SetScanConfigRequest(RequestBase):
+    type: Literal["scan"] = Field(description="配置类型")
+    value: ScanConfigModel= Field(
+        description="配置字典"
+    )
+
+class SetModelConfigRequest(RequestBase):
+    type: Literal["model"] = Field(description="配置类型")
+    value: ModelConfigModel= Field(
+        description="配置字典"
+    )
+
+class SetSearchConfigRequest(RequestBase):
+    type: Literal["search"] = Field(description="配置类型")
+    value: SearchConfigModel= Field(
+        description="配置字典"
+    )
+
 
 class SetConfigResponse(ResponseBase):
-    success: bool = Field(description='是否成功')
-    message: str = Field(description='详细信息')
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="详细信息")
