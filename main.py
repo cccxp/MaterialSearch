@@ -16,7 +16,7 @@ from scan import Scanner
 from search import (clean_cache, search_image_by_image, search_image_by_text,
                     search_image_file, search_video_by_image,
                     search_video_by_text, search_video_file)
-from utils import crop_video, get_hash
+from utils import ffmpeg_crop_video, get_hash
 
 logging.basicConfig(
     level=server_config.value.logLevel,
@@ -288,7 +288,7 @@ def api_download_video_clip(video_path, start_time, end_time):
         + os.path.basename(path)
     )
     if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
-        crop_video(path, output_path, start_time, end_time)
+        ffmpeg_crop_video(path, output_path, start_time, end_time)
     return send_file(output_path)
 
 

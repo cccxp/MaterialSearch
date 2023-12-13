@@ -1,11 +1,16 @@
 import abc
-import inspect
 import logging
 import os
 
 from dotenv import load_dotenv
-from config_model import *
-from config_model import BaseConfigModel
+
+from config_model import (
+    BaseConfigModel,
+    ModelConfigModel,
+    ScanConfigModel,
+    SearchConfigModel,
+    ServerConfigModel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,8 @@ class BaseConfig(metaclass=abc.ABCMeta):
 
     @value.setter
     def value(self, data):
-        self._config = data
+        # 验证 json 格式
+        self._config = self.config_model_class.model_validate(data)
         self.save_to_file()
 
     def __init__(self, config_model_class: BaseConfigModel) -> None:
@@ -178,8 +184,6 @@ def print_running_configurations():
         print(f"{var_name}: {var_value!r}")
     print("**************************************************")
 
-
-load_dotenv()
 
 scan_config = ScanConfig()
 model_config = ModelConfig()

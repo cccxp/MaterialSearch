@@ -17,17 +17,13 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 import crud
 from benchmark import Benchmark
-from config import (
-    server_config,
-    model_config,
-    scan_config,
-    search_config,
-)
+from config import model_config, scan_config, search_config, server_config
 from database import SessionLocal
 from fastapi_schemas import (
     GetConfigResponse,
@@ -43,9 +39,10 @@ from fastapi_schemas import (
     SearchImageResponse,
     SearchVideoResponse,
     SetConfigRequest,
+    SetConfigResponse,
 )
 from optimize_database import optimize_database
-from process_assets import match_text_and_image, process_image, process_text
+from process_assets import crop_video, match_text_and_image, process_image, process_text
 from scan import Scanner
 from search import (
     clean_cache,
@@ -56,7 +53,7 @@ from search import (
     search_video_by_text,
     search_video_file,
 )
-from utils import crop_video, get_hash
+from utils import get_hash
 
 logging.basicConfig(
     level=server_config.value.logLevel,
@@ -249,13 +246,13 @@ def api_get_video(video_path: Annotated[str, Path(title="视频路径")]):
 
 
 @router.get("/download_video_clip/{video_path}/{start_time}/{end_time}")
-def api_download_video_clip(video_path: str, start_time: int, end_time: int):
+def api_download_video_clip(
+    video_path: Annotated[str, Path(title="视频路径")],
+    start_time: Annotated[int, Path(title="开始时间")],
+    end_time: Annotated[int, Path(title="结束时间")],
+):
     """
     下载视频片段
-    :param video_path: string, 经过base64.urlsafe_b64encode的字符串，解码后可以得到视频在服务器上的绝对路径
-    :param start_time: int, 视频开始秒数
-    :param end_time: int, 视频结束秒数
-    :return: 视频文件
     """
     path = base64.urlsafe_b64decode(video_path).decode()
     logger.debug(path)
@@ -263,17 +260,7 @@ def api_download_video_clip(video_path: str, start_time: int, end_time: int):
         if not crud.is_video_exist(session, path):  # 如果路径不在数据库中，则返回404，防止任意文件读取攻击
             return Response(status_code=status.HTTP_404_NOT_FOUND)
     # 根据 VIDEO_EXTENSION_LENGTH 调整时长
-    start_time -= server_config.value.videoExtensionLength
-    end_time += server_config.value.videoExtensionLength
-    if start_time < 0:
-        start_time = 0
-    # 调用ffmpeg截取视频片段
-    output_path = (
-        f"{server_config.value.tempPath}/video_clips/{start_time}_{end_time}_"
-        + os.path.basename(path)
-    )
-    if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
-        crop_video(path, output_path, start_time, end_time)
+    output_path = crop_video(path, start_time, end_time)
     return FileResponse(output_path)
 
 
@@ -314,15 +301,20 @@ async def set_config(r: SetConfigRequest):
     """
     TODO: 设置配置项
     """
-    match r.type:
-        case "scan":
-            ...
-        case "model":
-            ...
-        case "search":
-            ...
-        case _:
-            return Response("", status.HTTP_404_NOT_FOUND)
+    try:
+        match r.type:
+            case "scan":
+                scan_config.value = r.value
+            case "model":
+                model_config.value = r.value
+            case "search":
+                search_config.value = r.value
+            case _:
+                return Response("", status.HTTP_404_NOT_FOUND)
+    except ValidationError as e:
+        # 格式错误
+        return SetConfigResponse(success=False, message=repr(e))
+    return SetConfigResponse(success=True, message="ok")
 
 
 @wsrouter.websocket("/benchmark")

@@ -15,7 +15,8 @@ from transformers import (
     CLIPProcessor,
 )
 
-from config import scan_config, model_config
+from config import scan_config, model_config, server_config
+from utils import ffmpeg_crop_video
 
 logger = logging.getLogger(__name__)
 logger.info("Loading model...")
@@ -252,3 +253,15 @@ def match_batch(
     if negative_feature is not None:
         scores = np.where(negative_scores > negative_threshold / 100, 0, scores)
     return scores
+
+
+def crop_video(path: str, start_time: int, end_time: int):
+    start_time -= server_config.value.videoExtensionLength
+    end_time += server_config.value.videoExtensionLength
+    if start_time < 0:
+        start_time = 0
+    # 调用ffmpeg截取视频片段
+    output_path = f"{server_config.value.tempPath}/video_clips/{start_time}_{end_time}_{os.path.basename(path)}"
+    if not os.path.exists(output_path):  # 如果存在说明已经剪过，直接返回，如果不存在则剪
+        ffmpeg_crop_video(path, output_path, start_time, end_time)
+    return output_path

@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Union
 from pydantic import BaseModel, Field
 
 from config_model import ScanConfigModel, ModelConfigModel, SearchConfigModel
@@ -102,5 +102,10 @@ class GetConfigResponse(ResponseBase):
 
 class SetConfigRequest(RequestBase):
     type: Literal["scan", "search", "model"] = Field(description="配置类型")
-    key: str = Field(description="配置项")
-    value: Any = Field(description="配置值")
+    value: dict[
+        str, Union[ScanConfigModel, SearchConfigModel, ModelConfigModel]
+    ] = Field(description="配置字典")
+
+class SetConfigResponse(ResponseBase):
+    success: bool = Field(description='是否成功')
+    message: str = Field(description='详细信息')

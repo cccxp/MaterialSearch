@@ -71,7 +71,7 @@ def format_seconds(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}".lstrip("00:")
 
 
-def crop_video(input_file, output_file, start_time, end_time):
+def ffmpeg_crop_video(input_file, output_file, start_time, end_time):
     """
     调用ffmpeg截取视频片段
     :param input_file: 要截取的文件路径
